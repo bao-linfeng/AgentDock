@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Env & local config
+.env
+.env.*
+!.env.example
+apps/runner/runner.config.json
+
+# Prisma
+apps/server/prisma/*.db
+
+# Agent worktrees (created at runtime)
+.agent-worktrees/
+
+# Logs
+*.log
+logs/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test / coverage
+coverage/

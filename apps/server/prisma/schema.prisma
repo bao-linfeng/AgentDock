@@ -1,0 +1,195 @@
+// AgentDock Control Server — Prisma schema.
+// Reflects docs/architecture.md §7. Decisions applied:
+//  - No `users` table (MVP single-user static token). See docs review notes.
+//  - `Runner.tokenHash` / `revoked` added (requirements.md §10 review note).
+//  - Status enums mirror the authoritative vocabulary in @agentdock/protocol
+//    (docs/architecture.md §8).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskSource {
+  web
+  github
+}
+
+enum TaskIntent {
+  fix
+  implement
+  review
+  test
+  general
+}
+
+enum TaskStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+enum RunStatus {
+  queued
+  assigned
+  running
+  needs_approval
+  verifying
+  publishing
+  succeeded
+  failed
+  cancelled
+}
+
+enum RunnerStatus {
+  online
+  offline
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  name          String
+  workspaceKey  String   @unique
+  defaultBranch String   @default("main")
+  testCommand   String?
+  buildCommand  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  repositories    Repository[]
+  runnerProjects  RunnerProject[]
+  tasks           Task[]
+}
+
+model Repository {
+  id             String   @id @default(cuid())
+  projectId      String
+  provider       String   @default("github")
+  owner          String
+  repo           String
+  installationId String?
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, owner, repo])
+  @@index([projectId])
+}
+
+model Runner {
+  id              String       @id @default(cuid())
+  name            String
+  machineName     String?
+  platform        String?
+  version         String?
+  status          RunnerStatus @default(offline)
+  // Store a hash of the runner token; the raw token is only shown once.
+  tokenHash       String       @unique
+  revoked         Boolean      @default(false)
+  revokedAt       DateTime?
+  lastHeartbeatAt DateTime?
+  createdAt       DateTime     @default(now())
+
+  runnerProjects RunnerProject[]
+  taskRuns       TaskRun[]
+}
+
+model RunnerProject {
+  runnerId      String
+  projectId     String
+  workspacePath String
+  enabled       Boolean @default(true)
+
+  runner  Runner  @relation(fields: [runnerId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([runnerId, projectId])
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  projectId String
+  source    TaskSource
+  // Normalized dedupe key for GitHub events (requirements.md §6 review note).
+  sourceRef String?    @unique
+  intent    TaskIntent
+  prompt    String     @db.Text
+  status    TaskStatus @default(queued)
+  createdBy String?
+  createdAt DateTime   @default(now())
+
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    TaskRun[]
+
+  @@index([projectId])
+}
+
+model TaskRun {
+  id           String    @id @default(cuid())
+  taskId       String
+  runnerId     String?
+  executor     String    @default("opencode")
+  status       RunStatus @default(queued)
+  branch       String?
+  worktreePath String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  errorCode    String?
+  errorMessage String?   @db.Text
+
+  task     Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  runner   Runner?    @relation(fields: [runnerId], references: [id])
+  events   RunEvent[]
+  artifacts Artifact[]
+  approvals Approval[]
+
+  @@index([taskId])
+  @@index([runnerId])
+}
+
+model RunEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  seq         Int
+  type        String
+  payloadJson Json
+  createdAt   DateTime @default(now())
+
+  run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, seq])
+  @@index([runId])
+}
+
+model Artifact {
+  id           String   @id @default(cuid())
+  runId        String
+  type         String
+  title        String
+  uri          String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model Approval {
+  id          String    @id @default(cuid())
+  runId       String
+  action      String
+  status      String    @default("pending")
+  requestedAt DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}

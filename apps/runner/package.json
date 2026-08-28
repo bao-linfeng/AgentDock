@@ -1,0 +1,23 @@
+{
+  "name": "@agentdock/runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agentdock-runner": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@agentdock/agent-runtime": "workspace:*",
+    "@agentdock/git-runtime": "workspace:*",
+    "@agentdock/protocol": "workspace:*",
+    "@agentdock/shared": "workspace:*",
+    "zod": "^3.24.1"
+  }
+}

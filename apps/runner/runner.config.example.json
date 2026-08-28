@@ -1,0 +1,11 @@
+{
+  "serverUrl": "http://localhost:3100",
+  "runnerToken": "change-me-runner-token",
+  "runnerName": "my-dev-workstation",
+  "projects": {
+    "proj_replace_with_server_project_id": {
+      "workspacePath": "D:/path/to/local/project",
+      "defaultBranch": "main"
+    }
+  }
+}
