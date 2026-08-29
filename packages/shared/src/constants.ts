@@ -12,3 +12,6 @@ export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
 
 /** Server considers a runner offline after this many ms without a heartbeat. */
 export const RUNNER_OFFLINE_TIMEOUT_MS = 45_000;
+
+/** How often the server sweeps for disconnected runners (docs/tasks.md T9.1). */
+export const RUNNER_DISCONNECT_SWEEP_INTERVAL_MS = 15_000;

@@ -116,6 +116,21 @@ export class RunnersService {
     });
   }
 
+  /**
+   * Find runners whose stored status is still `online` but whose heartbeat
+   * has gone stale (docs/tasks.md T9.1 / #38). Revoked runners are excluded —
+   * `revoke()` already marks them offline.
+   */
+  async findStaleOnlineRunners(now: Date = new Date()): Promise<Runner[]> {
+    const runners = await this.prisma.runner.findMany({ where: { status: 'online' } });
+    return runners.filter((runner) => !isRunnerOnline(runner, now));
+  }
+
+  /** Flip a runner's stored status to `offline` once its heartbeat is stale. */
+  async markOffline(id: string): Promise<void> {
+    await this.prisma.runner.update({ where: { id }, data: { status: 'offline' } });
+  }
+
   async listProjects(runnerId: string): Promise<RunnerProjectDto[]> {
     await this.requireRunner(runnerId);
     const mappings = await this.prisma.runnerProject.findMany({ where: { runnerId } });

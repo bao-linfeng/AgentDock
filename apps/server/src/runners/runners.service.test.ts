@@ -97,3 +97,29 @@ describe('RunnersService.upsertProject', () => {
     ).rejects.toThrow(/unknown project/);
   });
 });
+
+describe('RunnersService.findStaleOnlineRunners', () => {
+  it('returns only online runners whose heartbeat has gone stale', async () => {
+    const fresh = runner({ id: 'rnr_fresh', lastHeartbeatAt: now });
+    const stale = runner({
+      id: 'rnr_stale',
+      lastHeartbeatAt: new Date(now.getTime() - RUNNER_OFFLINE_TIMEOUT_MS - 1),
+    });
+    const service = new RunnersService(
+      fakePrisma({ runner: { findMany: vi.fn().mockResolvedValue([fresh, stale]) } }),
+    );
+
+    const result = await service.findStaleOnlineRunners(now);
+    expect(result).toEqual([stale]);
+  });
+});
+
+describe('RunnersService.markOffline', () => {
+  it('flips the stored status to offline', async () => {
+    const update = vi.fn().mockResolvedValue(runner({ status: 'offline' }));
+    const service = new RunnersService(fakePrisma({ runner: { update } }));
+
+    await service.markOffline('rnr_1');
+    expect(update).toHaveBeenCalledWith({ where: { id: 'rnr_1' }, data: { status: 'offline' } });
+  });
+});

@@ -52,6 +52,7 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 | `GET /runs/:id/events?afterSeq=&limit=`   | Ordered run timeline                                 |
 | `GET /runs/:id/artifacts`                 | Artifact metadata (diff / commit / PR …)             |
 | `POST /runs/:id/cancel`                   | Request cancellation                                 |
+| `POST /runs/:id/retry`                    | Retry a `failed` run as a new run (history kept)     |
 | `GET /runners` · `GET /runners/:id`       | Runner inventory (`online` derived from heartbeat)   |
 | `POST /runners/:id/revoke`                | Revoke a runner token                                |
 | `GET /runners/:id/projects`               | Project → local workspace path mappings              |
@@ -85,3 +86,17 @@ Notes:
   `task_runs.cancel_requested_at` and the runner picks it up from its heartbeat.
 - Event payloads pass through `redactSecrets` before they are persisted
   ("Secret 不写 RunEvent" — architecture §14).
+- A background sweep (`RunnerDisconnectSweeper`, `@nestjs/schedule`) runs every
+  `RUNNER_DISCONNECT_SWEEP_INTERVAL_MS` (15s): once a runner's heartbeat is
+  older than `RUNNER_OFFLINE_TIMEOUT_MS` (45s) it is marked `offline` and any
+  run it still owns is failed with `errorCode: 'runner_disconnected'` instead
+  of being left stuck in-flight forever (docs/tasks.md T9.1 / #38).
+- `POST /runs/:id/retry` only accepts a `failed` run and only when the task has
+  no other active run; it creates a new `TaskRun` row (new id, `queued`) and
+  leaves the failed run's events untouched so history is preserved
+  (docs/tasks.md T9.2 / #39).
+- Idempotency (docs/tasks.md T9.3 / #40): GitHub delivery ids and normalized
+  `sourceRef`s are unique columns, so a replayed `POST /tasks` returns the
+  existing task (`deduplicated: true`) instead of creating a duplicate; claim
+  is a single conditional `UPDATE`, and completing an already-terminal run
+  returns 409 instead of double-applying artifacts/events.

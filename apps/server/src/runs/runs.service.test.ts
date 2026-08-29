@@ -221,3 +221,112 @@ describe('RunsService.requestCancel', () => {
     await expect(svc.requestCancel('run_1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+describe('RunsService.failDisconnected', () => {
+  it('fails an in-flight run with a diagnosable error when its runner disconnects', async () => {
+    const findUnique = vi
+      .fn()
+      .mockResolvedValueOnce(run({ status: 'running', runnerId: 'rnr_1' }))
+      .mockResolvedValueOnce(run({ status: 'running', runnerId: 'rnr_1' }))
+      .mockResolvedValue(
+        run({
+          status: 'failed',
+          runnerId: 'rnr_1',
+          errorCode: 'runner_disconnected',
+          errorMessage: 'runner rnr_1 stopped sending heartbeats while this run was in flight',
+        }),
+      );
+    const update = vi.fn().mockResolvedValue(run({ status: 'running', runnerId: 'rnr_1' }));
+    const svc = service(
+      fakePrisma({
+        taskRun: { findUnique, update },
+        task: { update: vi.fn() },
+        runEvent: {
+          aggregate: vi.fn().mockResolvedValue({ _max: { seq: 0 } }),
+          create: vi.fn().mockResolvedValue({
+            id: 'evt',
+            runId: 'run_1',
+            seq: 1,
+            type: 'status',
+            payloadJson: {},
+            createdAt: now,
+          }),
+        },
+      }),
+    );
+
+    const dto = await svc.failDisconnected('run_1', 'rnr_1');
+    expect(dto.status).toBe('failed');
+    expect(dto.errorCode).toBe('runner_disconnected');
+    // first update call stamps the diagnosable error before the status transition
+    expect(update.mock.calls[0][0].data.errorCode).toBe('runner_disconnected');
+  });
+
+  it('is a no-op once the run already finished', async () => {
+    const svc = service(
+      fakePrisma({
+        taskRun: { findUnique: vi.fn().mockResolvedValue(run({ status: 'succeeded' })) },
+      }),
+    );
+    const dto = await svc.failDisconnected('run_1', 'rnr_1');
+    expect(dto.status).toBe('succeeded');
+  });
+});
+
+describe('RunsService.retry', () => {
+  it('creates a fresh queued run and leaves the failed run untouched', async () => {
+    const findUnique = vi.fn().mockResolvedValue(run({ status: 'failed' }));
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const create = vi
+      .fn()
+      .mockResolvedValue(run({ id: 'run_2', status: 'queued', createdAt: now }));
+    const taskUpdate = vi.fn().mockResolvedValue({});
+    const svc = service(
+      fakePrisma({
+        taskRun: { findUnique, findFirst, create },
+        task: { update: taskUpdate },
+        runEvent: {
+          aggregate: vi.fn().mockResolvedValue({ _max: { seq: 0 } }),
+          create: vi.fn().mockResolvedValue({
+            id: 'evt',
+            runId: 'run_2',
+            seq: 1,
+            type: 'log',
+            payloadJson: {},
+            createdAt: now,
+          }),
+        },
+      }),
+    );
+
+    const dto = await svc.retry('run_1');
+    expect(dto.id).toBe('run_2');
+    expect(dto.status).toBe('queued');
+    expect(create).toHaveBeenCalledWith({ data: { taskId: 'task_1', executor: 'opencode' } });
+    expect(taskUpdate).toHaveBeenCalledWith({
+      where: { id: 'task_1' },
+      data: { status: 'queued' },
+    });
+  });
+
+  it('refuses to retry a run that has not failed', async () => {
+    const svc = service(
+      fakePrisma({
+        taskRun: { findUnique: vi.fn().mockResolvedValue(run({ status: 'running' })) },
+      }),
+    );
+    await expect(svc.retry('run_1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('refuses to retry while another run on the task is still active', async () => {
+    const svc = service(
+      fakePrisma({
+        taskRun: {
+          findUnique: vi.fn().mockResolvedValue(run({ status: 'failed' })),
+          findFirst: vi.fn().mockResolvedValue(run({ id: 'run_3', status: 'running' })),
+        },
+      }),
+    );
+    await expect(svc.retry('run_1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
