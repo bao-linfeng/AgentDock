@@ -6,6 +6,13 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GitRuntimeError, WorktreeManager, agentBranchName, runVerification } from './index.js';
 
+/** Create a bare repo to use as a push target ("origin"). */
+async function makeBareRemote(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'agentdock-git-remote-'));
+  await git(dir, ['init', '--quiet', '--bare', '-b', 'main']);
+  return dir;
+}
+
 const execFileAsync = promisify(execFile);
 
 async function git(cwd: string, args: string[]): Promise<void> {
@@ -159,5 +166,79 @@ describe('WorktreeManager.commit', () => {
       cwd: handle.worktreePath,
     });
     expect(status.stdout.trim()).toBe('');
+  });
+});
+
+describe('WorktreeManager.push', () => {
+  let repo: string;
+  let remote: string;
+
+  beforeEach(async () => {
+    repo = await makeRepo();
+    remote = await makeBareRemote();
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+  });
+
+  it('returns pushed:false when no remote is configured', async () => {
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_8', 'main', 'agent/run_8');
+    const result = await mgr.push(handle);
+    expect(result).toEqual({
+      remote: 'origin',
+      branch: 'agent/run_8',
+      pushed: false,
+      reason: expect.stringContaining('origin'),
+    });
+  });
+
+  it('pushes the agent branch to the configured remote', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_9', 'main', 'agent/run_9');
+    await writeFile(join(handle.worktreePath, 'new-file.txt'), 'hello\n');
+    await mgr.commit(handle, 'agentdock: add new-file');
+
+    const result = await mgr.push(handle);
+
+    expect(result).toEqual({ remote: 'origin', branch: 'agent/run_9', pushed: true });
+    const branches = await execFileAsync('git', ['branch', '--list', 'agent/run_9'], {
+      cwd: remote,
+    });
+    expect(branches.stdout).toContain('agent/run_9');
+  });
+
+  it('refuses to push the base/default branch directly', async () => {
+    const mgr = new WorktreeManager(repo);
+    // Simulate a misconfigured caller passing the base branch as the "agent" branch.
+    const handle = await mgr.create('run_10', 'main', 'agent/run_10');
+    const protectedHandle = { ...handle, branch: 'main' };
+
+    await expect(mgr.push(protectedHandle)).rejects.toBeInstanceOf(GitRuntimeError);
+  });
+
+  it('refuses to push a branch listed in protectedBranches even if not the base', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_11', 'main', 'agent/run_11');
+
+    await expect(mgr.push(handle, { protectedBranches: ['agent/run_11'] })).rejects.toBeInstanceOf(
+      GitRuntimeError,
+    );
+  });
+
+  it('uses a custom remote name when provided', async () => {
+    await git(repo, ['remote', 'add', 'upstream', remote]);
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_12', 'main', 'agent/run_12');
+    await writeFile(join(handle.worktreePath, 'x.txt'), 'x\n');
+    await mgr.commit(handle, 'agentdock: x');
+
+    const result = await mgr.push(handle, { remote: 'upstream' });
+
+    expect(result).toEqual({ remote: 'upstream', branch: 'agent/run_12', pushed: true });
   });
 });

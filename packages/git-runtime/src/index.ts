@@ -17,6 +17,25 @@ export interface WorktreeHandle {
   baseBranch: string;
 }
 
+export interface PushOptions {
+  /** Git remote to push to. Defaults to `origin`. */
+  remote?: string;
+  /**
+   * Branches that must never be pushed to directly (the run's own agent
+   * branch is always allowed regardless of this list). Defaults to the
+   * worktree's `baseBranch`.
+   */
+  protectedBranches?: string[];
+}
+
+export interface PushResult {
+  remote: string;
+  branch: string;
+  pushed: boolean;
+  /** Set when `pushed` is false because there is no configured remote. */
+  reason?: string;
+}
+
 export interface ChangeSummary {
   changedFiles: string[];
   insertions: number;
@@ -192,6 +211,43 @@ export class WorktreeManager {
     await git(handle.worktreePath, ['commit', '--quiet', '-m', message]);
     const sha = (await git(handle.worktreePath, ['rev-parse', 'HEAD'])).trim();
     return sha;
+  }
+
+  /**
+   * Push the run's agent branch to a remote (PR-first workflow, docs/tasks.md
+   * T5.4, docs/architecture.md §14). Direct pushes to the base/default branch
+   * or any other configured protected branch are refused — the agent branch
+   * itself is always pushable since that's the whole point of this method.
+   *
+   * Reuses whatever git credentials/remote are already configured in the
+   * project's checkout (the same ones a human `git push` would use); no
+   * separate token wiring is required here (that's for the GitHub API side,
+   * #28/#30). Returns `pushed: false` (rather than throwing) when there is no
+   * such remote configured, so offline/local-only repos degrade gracefully.
+   */
+  async push(handle: WorktreeHandle, options: PushOptions = {}): Promise<PushResult> {
+    this.assertContained(handle.worktreePath);
+
+    const remote = options.remote ?? 'origin';
+    const protectedBranches = new Set(options.protectedBranches ?? [handle.baseBranch]);
+    if (protectedBranches.has(handle.branch)) {
+      throw new GitRuntimeError(`refusing to push protected branch directly: ${handle.branch}`);
+    }
+
+    const remotes = (await git(handle.worktreePath, ['remote'])).split('\n').map((r) => r.trim());
+    if (!remotes.includes(remote)) {
+      return { remote, branch: handle.branch, pushed: false, reason: `no such remote: ${remote}` };
+    }
+
+    await git(handle.worktreePath, [
+      'push',
+      '--quiet',
+      '--set-upstream',
+      remote,
+      `HEAD:refs/heads/${handle.branch}`,
+    ]);
+
+    return { remote, branch: handle.branch, pushed: true };
   }
 
   /** Remove the worktree and prune its administrative entry. */

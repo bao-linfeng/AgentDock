@@ -33,13 +33,20 @@
 > The **OpenCode ACP executor is implemented and unit-tested**
 > (`packages/agent-runtime`, via `@agentclientprotocol/sdk`), and the **Local
 > Runner now drives the full claim → worktree → execute → verify → commit →
-> complete loop** end to end (`apps/runner/src/claim-execute-loop.ts`), honoring
-> cancellation via the per-run heartbeat. Pushing the commit and opening a Pull
-> Request are not implemented yet (tracked separately, see
-> [Milestone 5](#-roadmap) / [#27](https://github.com/bao-linfeng/AgentDock/issues/27)) —
-> without a GitHub App/token integration there is nowhere to push to, so a
-> `fix`/`implement` run currently completes as `failed` on the evidence check
-> until that lands. The **Web console is now built**
+> push → complete loop** end to end (`apps/runner/src/claim-execute-loop.ts`),
+> honoring cancellation via the per-run heartbeat. Pushing the agent branch to
+> a configured remote is implemented (`WorktreeManager.push()`,
+> [#27](https://github.com/bao-linfeng/AgentDock/issues/27)) and reuses
+> whatever git remote/credentials are already set up in the project's
+> checkout, opt-in per project via `runner.config.json`'s `push.enabled` —
+> direct pushes to the base/protected branch are refused. Opening a Pull
+> Request from that pushed branch is not implemented yet (tracked separately,
+> see [Milestone 6](#-roadmap) / [#30](https://github.com/bao-linfeng/AgentDock/issues/30)),
+> which still needs a GitHub App/token integration
+> ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)) to call the
+> GitHub API — so a `fix`/`implement` run currently completes as `failed` on
+> the evidence check (missing the `pull_request` artifact) until that lands.
+> The **Web console is now built**
 > (Dashboard, Task List, Task Detail with live SSE updates, Projects — see
 > [Milestone 7](#-roadmap)). Progress and the issue mapping are tracked in
 > [`docs/tasks.md`](./docs/tasks.md) and the
@@ -263,11 +270,11 @@ AgentDock/
 
 > [!IMPORTANT]
 > The **Control Server runs today** (Milestone 2), the **Local Runner now runs
-> the full claim→execute loop** (Milestone 3 — see step 3 below), and the
-> **Web console is now built** (Milestone 7 — see step 4 below). Pushing/PR
-> creation after a run's commit is not implemented yet (#27/#30), so step 3
-> reflects what actually runs today, short of a pushed branch or opened PR.
-> See [Roadmap](#-roadmap).
+> the full claim→execute→push loop** (Milestone 3/5 — see step 3 below), and
+> the **Web console is now built** (Milestone 7 — see step 4 below). Opening a
+> PR after a run's push is not implemented yet (#30), so step 3 reflects what
+> actually runs today: an optional push happens (opt-in per project), but no
+> PR is opened. See [Roadmap](#-roadmap).
 
 ### Prerequisites
 
@@ -330,7 +337,12 @@ cp runner.config.example.json runner.config.json
   "projects": {
     "proj_123": {
       "workspacePath": "/path/to/local/project",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "push": {
+        "enabled": false,
+        "remote": "origin",
+        "protectedBranches": []
+      }
     }
   }
 }
@@ -343,10 +355,13 @@ pnpm start
 The runner registers, heartbeats, and starts polling
 `GET /runner/tasks/claim` every 5s; once a task is queued for a mapped
 project it creates an isolated worktree, runs OpenCode via ACP, verifies
-(optional test command), commits locally, and reports the outcome back.
-Pushing the branch / opening a PR is not implemented yet (#27/#30), so
-`fix`/`implement` tasks currently finish as `failed` on the evidence check
-until that lands — `general` tasks (no PR requirement) complete normally.
+(optional test command), commits locally, and — if `push.enabled` is set for
+that project — pushes the agent branch to the configured remote (reusing
+whatever git credentials are already set up locally; direct pushes to the
+base/protected branch are refused). Opening a PR from that branch is not
+implemented yet (#30), so `fix`/`implement` tasks currently finish as
+`failed` on the evidence check (missing the `pull_request` artifact) until
+that lands — `general` tasks (no PR requirement) complete normally.
 
 ### 4. Start the Web console
 
@@ -403,9 +418,9 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
   - ✅ OpenCode ACP executor · ACP → RunEvent bridge (via `@agentclientprotocol/sdk`; see `packages/agent-runtime`)
-- 🟡 **Milestone 5 — Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+- ✅ **Milestone 5 — Git Runtime** *(done)* ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree manager, change detection, verification ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
-  - 🟡 Commit (local, via #24) · ⬜ Push / no direct push to default branch ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+  - ✅ Commit (local, via #24) · ✅ Push new branch + refuse direct push to base/protected branches ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
 - 🟡 **Milestone 6 — GitHub integration** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ⬜ Webhook verification & dedupe · PR creation · callback comments
