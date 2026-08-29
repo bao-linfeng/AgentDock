@@ -5,7 +5,12 @@
   "projects": {
     "proj_replace_with_server_project_id": {
       "workspacePath": "D:/path/to/local/project",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "push": {
+        "enabled": false,
+        "remote": "origin",
+        "protectedBranches": []
+      }
     }
   }
 }

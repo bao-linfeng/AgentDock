@@ -1,7 +1,11 @@
 import type { RawBodyRequest } from '@nestjs/common';
 import { Controller, Get, HttpCode, Inject, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiTokenGuard } from '../auth/api-token.guard.js';
-import { GitHubService, type GitHubStatusDto } from './github.service.js';
+import {
+  type GitHubInstallationDto,
+  GitHubService,
+  type GitHubStatusDto,
+} from './github.service.js';
 import type { GitHubWebhookHeaders, WebhookResult } from './webhook.dto.js';
 import { GitHubWebhookService } from './webhook.service.js';
 
@@ -26,6 +30,13 @@ export class GitHubController {
   @UseGuards(ApiTokenGuard)
   status(): GitHubStatusDto {
     return this.github.status();
+  }
+
+  /** Installations of the configured GitHub App, for the repo-binding UI (#28). */
+  @Get('installations')
+  @UseGuards(ApiTokenGuard)
+  installations(): Promise<GitHubInstallationDto[]> {
+    return this.github.listInstallations();
   }
 
   /**

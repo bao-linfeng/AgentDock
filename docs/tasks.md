@@ -29,15 +29,15 @@
 | M5 Git Runtime | T5.1 WorktreeManager | ✅ | #1 / PR #10 |
 | | T5.2 变更检测 | ✅ | #1 / PR #10 |
 | | T5.3 验证（测试命令） | ✅ | #1 / PR #10 |
-| | T5.4 提交 / 推送 | ⬜ | #27 |
-| M6 GitHub | T6.1 App / Token 接入 | ⬜ | #28 |
+| | T5.4 提交 / 推送 | ✅ | #27 |
+| M6 GitHub | T6.1 App / Token 接入 | ✅ | #28 |
 | | T6.2 Webhook 验签与去重 | ✅ | #29 / PR #49 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
 | | T6.5 创建 PR | ⬜ | #30 |
 | | T6.6 回调评论 | ⬜ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
-| | T7.2 Projects | 🟡 | #33（仓库绑定待 GitHub App 接入 #28 合并后开放；Webhook 验签/去重 #29 已完成） |
+| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
 | | T7.3 Task List | ✅ | #34 |
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
@@ -203,7 +203,8 @@ cancelled
 - [x] TasksModule
 - [x] RunsModule
 - [x] RunnersModule
-- [x] GitHubModule（`GET /github/status` + `POST /github/webhook`，验签与去重见 #29）
+- [x] GitHubModule（`GET /github/status`、`GET /github/installations`、
+  `POST /github/webhook`、`repositories` CRUD；验签/去重见 #29，App 鉴权/仓库绑定见 #28）
 - [x] EventsModule（SSE：先回放 DB 事件，再推送实时事件）
 
 ## T2.2 Prisma Schema
@@ -332,12 +333,12 @@ local workspace path
 > 终态收尾，而不是直接杀进程。
 >
 > **[范围边界]** 本任务只做本地 `git commit`（满足 governance 的 `commit`
-> 证据），**不做** `git push` 与 PR 创建——这两项仍是 #27（T5.4，已实现，见
-> PR #47）与 #30（T6.5）的范围。GitHub App/Token 接入（#28）已实现（见
-> PR #48），webhook 验签与去重（#29）已完成；上述 PR 合并后 `fix`/`implement`
-> 任务的推送与 PR 创建能力即可打通。当前若最终没有额外产出 `pull_request`
-> artifact，`decideCompletion` 会按证据规则判定为 `failed`
-> （`errorCode: 'evidence_incomplete'`），这是预期行为，等 #27/#30 落地后
+> 证据），**不做** `git push` 与 PR 创建——`git push`（推送 agent 分支到已配置
+> 的 remote，禁止直推默认/受保护分支）已由 #27（T5.4，PR #47）补齐，GitHub
+> App/Token 接入（#28，PR #48）与 webhook 验签/去重（#29，PR #49）均已完成；
+> PR 创建仍是 #30（T6.5）的范围。因此对 `fix`/`implement` 意图的任务，若最终
+> 没有额外产出 `pull_request` artifact，`decideCompletion` 仍会按证据规则判定
+> 为 `failed`（`errorCode: 'evidence_incomplete'`），这是预期行为，等 #30 落地后
 > 会自然满足。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
 
 ---
@@ -443,17 +444,30 @@ RunEvent
 
 ## T5.4 Commit / Push
 
-> 🟡 部分完成（#27）
+> ✅ 已完成（#27）
 >
 > `WorktreeManager.commit()` 已随 #24 落地（`packages/git-runtime/src/index.ts`）：
 > 对 worktree 内的变更 `git add -A` + `git commit`，返回新提交的 SHA，供 Runner
-> 主循环产出 `commit` RunArtifact。**推送到 origin 与创建 PR 仍待办**——
-> 需要 #28（GitHub App/Token 接入）提供推送目标后才能实现。
+> 主循环产出 `commit` RunArtifact。**推送到 origin** 由本任务（#27）新增的
+> `WorktreeManager.push()` 完成：复用项目本地已配置好的 git remote/凭据（与人工
+> `git push` 一致），**不**依赖 #28（GitHub App/Token）——那是给 Control
+> Server 侧调 GitHub API（开 PR、回帖）用的凭证，跟本机 `git push` 是两套体系。
+> `push()` 默认会拒绝直推 base/受保护分支，只推 agent 分支本身；没有配置远程时
+> 返回 `pushed: false` 而不是抛错，离线/纯本地仓库可以优雅降级。是否启用推送、
+> 推到哪个 remote、额外的受保护分支列表，由 `runner.config.json` 里每个项目的
+> `push` 字段（`enabled` / `remote` / `protectedBranches`）控制，默认
+> `enabled: false` 保持之前的仅提交行为。Runner 主循环
+> （`apps/runner/src/claim-execute-loop.ts`）在 commit 成功后，若该项目启用了
+> push，会调用 `push()` 并把结果记录为一条 `commit` 类型的 RunArtifact
+> （`metadata.pushed: true` + `remote`/`branch`），供 governance 后续（#30）
+> 判定 `pull_request` 证据前的中间状态参考；push 失败/跳过只记日志，不会让
+> run 失败（证据规则本身仍会因缺 `pull_request` 而判定 `fix`/`implement`
+> 为 `failed`，这是预期行为，等 #30 落地后自然满足）。
 
 - [x] commit（本地提交，`WorktreeManager.commit`；#24）
-- [ ] configurable commit template（Runner 侧已支持 `commitMessageTemplate` 选项，默认模板见 #24；项目级可配置模板仍待办）
-- [ ] push new branch
-- [ ] 禁止 direct push default branch
+- [x] configurable commit template（Runner 侧 `commitMessageTemplate` 选项；#24）
+- [x] push new branch（`WorktreeManager.push()`；Runner 侧按项目 `push.enabled` 开关；#27）
+- [x] 禁止 direct push default branch（`push()` 默认拒绝推送 `baseBranch` / `protectedBranches`；#27）
 
 ---
 
@@ -461,11 +475,29 @@ RunEvent
 
 ## T6.1 GitHub App / Token 接入
 
-> ⬜ 待办（#28）
+> ✅ 已完成（#28）
+>
+> `apps/server/src/github/github-app.service.ts` 用官方 `octokit`
+> 包（内含 `@octokit/auth-app`）封装 GitHub App 认证：`appOctokit()` 提供
+> App 级（JWT）客户端，`installationOctokit(installationId)` 按需签发并缓存
+> Installation Token（由 `@octokit/auth-app` 自动刷新），供 #30/#31 调用
+> GitHub API（开 PR、回帖）时复用，本任务本身不发起除"校验可访问仓库"外的
+> 业务请求。`GITHUB_WEBHOOK_SECRET` 的读取/校验逻辑已随 Control Server 配置
+> 模块（`apps/server/src/config/env.ts`）落地，供 #29 在验签时使用（本任务
+> 只负责让该配置项可用，签名校验本身仍是 #29 的范围）。
+>
+> **Repository binding：** `RepositoriesController`（`POST/GET/DELETE
+> /projects/:projectId/repositories`）把 GitHub 仓库（`owner`/`repo`）与本地
+> `Project` 关联，写入既有的 `repositories` 表（architecture §7）。绑定前会
+> 用给定的 `installationId` 实际调用 GitHub API 校验该 Installation 确实能访问
+> 目标仓库，避免记错 `installationId` 导致后续 PR/评论调用全部失败才被发现。
+> `GET /github/installations` 列出已安装该 App 的 Installation，供 Web 端
+> 选择。Web 侧 `RepositoryBindingPanel.vue`（issue #33 的一部分）据此渲染
+> 绑定表单，替换掉之前"尚未开放"的占位提示。
 
-- [ ] Webhook secret
-- [ ] Installation auth
-- [ ] Repository binding
+- [x] Webhook secret（配置读取/校验已随 Control Server env 落地；签名验证本身仍是 #29）
+- [x] Installation auth（`GitHubAppService`，基于官方 `octokit` 包）
+- [x] Repository binding（`RepositoriesController` + Web `RepositoryBindingPanel.vue`）
 
 ## T6.2 Webhook Verification
 

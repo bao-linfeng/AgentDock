@@ -93,6 +93,7 @@ async function main(): Promise<void> {
     client,
     pollIntervalMs: CLAIM_POLL_INTERVAL_MS,
     executor,
+    getPushConfig: (projectId) => config.projects[projectId]?.push,
     onLog: (message) => {
       console.log(`[runner] ${message}`);
     },
