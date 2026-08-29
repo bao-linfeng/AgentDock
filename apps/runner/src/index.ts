@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { DEFAULT_HEARTBEAT_INTERVAL_MS } from '@agentdock/shared';
-import { type RunnerConfig, loadConfig } from './config.js';
+import { type RunnerConfig, checkFilePermissions, loadConfig, validateProjects } from './config.js';
 
 /**
  * Local Runner entry point — SKELETON.
@@ -30,6 +30,19 @@ async function main(): Promise<void> {
 
   console.log(`[runner] "${config.runnerName}" -> server ${config.serverUrl}`);
   console.log(`[runner] mapped projects: ${Object.keys(config.projects).length}`);
+
+  // Surface config safety issues before attempting any work.
+  const issues = [...(await checkFilePermissions(configPath)), ...(await validateProjects(config))];
+  for (const issue of issues) {
+    const tag = issue.level === 'error' ? 'ERROR' : 'warn';
+    console.error(`[runner] ${tag} [${issue.projectId}] ${issue.message}`);
+  }
+  if (issues.some((i) => i.level === 'error')) {
+    console.error('[runner] config validation failed; fix the errors above before starting.');
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(
     `[runner] heartbeat interval: ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms (loop not implemented yet)`,
   );
