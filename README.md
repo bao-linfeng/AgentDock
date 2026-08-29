@@ -384,7 +384,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - 🟡 **Milestone 3 — Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
   - ✅ Runner config safety & secret handling ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ Task-claim engine core ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
-  - ⬜ Runner-side registration/heartbeat loop · claim→execute loop
+  - ✅ Runner-side registration/heartbeat loop (#23) · ⬜ claim→execute loop (#24)
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
   - ✅ OpenCode ACP executor · ACP → RunEvent bridge (via `@agentclientprotocol/sdk`; see `packages/agent-runtime`)

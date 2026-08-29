@@ -19,7 +19,7 @@
 | | T2.3 Project CRUD | ✅ | #21 |
 | | T2.4 Runner Gateway 与取消通道 | ✅ | #22 |
 | M3 Local Runner | T3.1 Runner 配置安全 | ✅ | #5 / PR #14 |
-| | T3.2 注册与心跳 | 🟡 | #23（服务端接口已完成，Runner 侧待做） |
+| | T3.2 注册与心跳 | ✅ | #23（服务端接口 #22；Runner 侧循环见 apps/runner/src/heartbeat-loop.ts） |
 | | T3.3 项目映射（根包含校验） | 🟡 | #5（部分）/ #24（服务端映射接口已完成） |
 | | T3.4 任务领取核心 | ✅ | #3 / PR #12 |
 | | T3.4b Runner 领取→执行主循环 | ⬜ | #24 |
@@ -270,14 +270,23 @@ cancelled
 
 ## T3.2 Runner 注册
 
-> 🟡 服务端接口已完成（#22 的 `POST /runner/register` / `POST /runner/heartbeat`）；Runner 侧循环待做（#23）
+> ✅ 已完成（#23，`apps/runner/src/runner-client.ts` + `heartbeat-loop.ts`）
+>
+> `RunnerClient` 封装 `POST /runner/register` 与 `POST /runner/heartbeat`（均带
+> `Authorization: Bearer <runnerToken>`，10s 请求超时）；`register` 上报
+> `platform`（默认取 `node:os` 的 `platform()`）与可选的 `machineName`/`version`。
+> `HeartbeatLoop` 在启动时注册一次，随后按 `DEFAULT_HEARTBEAT_INTERVAL_MS`
+> （15s）轮询 `POST /runner/heartbeat`；心跳成功/失败驱动本地
+> online/offline 状态回调（纯用于日志可见性，服务端的权威判定仍是
+> `RUNNER_OFFLINE_TIMEOUT_MS` + `RunnerDisconnectSweeper`，见 #38）。
+> Token 被服务端吊销（401 + "revoked"）时，循环自动停止并给出明确的错误提示。
+> `apps/runner/src/index.ts` 中完整接入，含 SIGINT/SIGTERM 优雅关闭。
 
-- [x] register（服务端）
-- [x] heartbeat（服务端；`RUNNER_OFFLINE_TIMEOUT_MS` 判定 online/offline）
+- [x] register（服务端 + Runner 侧）
+- [x] heartbeat（服务端 + Runner 侧）
 - [x] online/offline
 - [x] version
 - [x] platform
-- [ ] Runner 侧定时注册 / 心跳循环（#23）
 
 ## T3.3 Runner Project Mapping
 

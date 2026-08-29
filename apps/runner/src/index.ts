@@ -1,18 +1,19 @@
 import { resolve } from 'node:path';
 import { DEFAULT_HEARTBEAT_INTERVAL_MS } from '@agentdock/shared';
 import { type RunnerConfig, checkFilePermissions, loadConfig, validateProjects } from './config.js';
+import { HeartbeatLoop } from './heartbeat-loop.js';
+import { RunnerApiError, RunnerClient, RunnerTokenRevokedError } from './runner-client.js';
 
 /**
- * Local Runner entry point — SKELETON.
+ * Local Runner entry point.
  *
  * Confirmed decisions: single runner, one task at a time, pure OpenCode ACP.
  *
- * TODO(M3/T3.2): register + heartbeat against `${serverUrl}/runner/...`.
- * TODO(M3/T3.4): actively claim tasks (GET /runner/tasks/claim).
- * TODO(cancel): the polling model has no downstream cancel channel yet — carry a
- *   `cancelRequested` flag on the heartbeat response (docs/architecture.md §9
- *   review note) before implementing OpenCode cancellation.
- * TODO(M4): drive OpenCodeExecutor; TODO(M5): WorktreeManager lifecycle.
+ * T3.2 (#23) is implemented below: register once, then heartbeat on
+ * `DEFAULT_HEARTBEAT_INTERVAL_MS`, reporting online/offline transitions.
+ *
+ * TODO(M3/T3.4b, #24): actively claim tasks (GET /runner/tasks/claim) and run
+ *   the claim -> git worktree -> OpenCodeExecutor -> report loop.
  */
 async function main(): Promise<void> {
   const configPath = resolve(process.argv[2] ?? 'runner.config.json');
@@ -43,10 +44,53 @@ async function main(): Promise<void> {
     return;
   }
 
+  const client = new RunnerClient({ serverUrl: config.serverUrl, runnerToken: config.runnerToken });
+  const loop = new HeartbeatLoop({
+    client,
+    intervalMs: DEFAULT_HEARTBEAT_INTERVAL_MS,
+    runnerName: config.runnerName,
+    version: process.env.npm_package_version,
+    onStateChange: (state) => {
+      console.log(`[runner] connection state -> ${state}`);
+    },
+    onError: (error) => {
+      const message = error instanceof RunnerApiError ? error.message : String(error);
+      console.error(`[runner] heartbeat failed: ${message}`);
+    },
+    onRevoked: (error) => {
+      console.error(`[runner] ${error.message}`);
+      console.error('[runner] token revoked by the server; stopping. Update runner.config.json.');
+      process.exitCode = 1;
+    },
+  });
+
+  try {
+    await loop.start();
+  } catch (error) {
+    if (error instanceof RunnerTokenRevokedError) {
+      console.error(`[runner] registration rejected: ${error.message}`);
+    } else {
+      console.error(
+        `[runner] failed to register with ${config.serverUrl}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(
-    `[runner] heartbeat interval: ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms (loop not implemented yet)`,
+    `[runner] registered; heartbeat every ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms. claim/execute loop is TODO (#24).`,
   );
-  console.log('[runner] skeleton only — register/claim/execute loop is TODO (M3/M4).');
+
+  const shutdown = () => {
+    console.log('[runner] shutting down…');
+    loop.stop();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 void main();
