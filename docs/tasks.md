@@ -8,7 +8,7 @@
 
 | 里程碑 | 任务 | 状态 | Issue / PR |
 | --- | --- | --- | --- |
-| M0 技术验证 | T0.1 ACP 冒烟测试 | ⬜ | #16 |
+| M0 技术验证 | T0.1 ACP 冒烟测试 | ✅ | #16 |
 | | T0.2 OMO Slim 兼容性 | ⬜ | #17 |
 | | T0.3 OpenTag 源码走读 | ⬜ | #18 |
 | M1 Monorepo 与 Protocol | T1.1 初始化 Monorepo | ✅ | 基线提交 |
@@ -64,17 +64,22 @@
 **优先级：** P0  
 **标记：** `[参考 OpenTag] [可直接复用优先]`
 
-> ⬜ 待办（#16）
+> ✅ 已完成（#16）——`packages/agent-runtime/src/smoke/opencode-acp-smoke.ts`
+> （运行：`pnpm --filter @agentdock/agent-runtime run smoke:acp`，需要本机已安装
+> `opencode` 并完成 `opencode providers login`）。全部验收项已用真实
+> `opencode acp` 二进制验证通过；过程中发现并修复了 Windows 下
+> `launchAcpProcess` 因 `.cmd` shim 导致 `spawn` 报 `ENOENT`/`EINVAL` 的问题
+> （`acp-client.ts` 现在在 `win32` 上使用 `shell: true`，见 `acp-client.test.ts`）。
 
 验收：
 
-- [ ] Node 可启动 OpenCode ACP
-- [ ] 指定 `workspaceCwd`
-- [ ] 提交一个简单 Prompt
-- [ ] 能收到结构化 Progress
-- [ ] 能收到 Final Result
-- [ ] 能取消 Run
-- [ ] 不依赖 TUI stdout parser
+- [x] Node 可启动 OpenCode ACP
+- [x] 指定 `workspaceCwd`
+- [x] 提交一个简单 Prompt
+- [x] 能收到结构化 Progress
+- [x] 能收到 Final Result
+- [x] 能取消 Run
+- [x] 不依赖 TUI stdout parser
 
 ### T0.2 OMO Slim 兼容性验证
 

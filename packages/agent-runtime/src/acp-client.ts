@@ -47,6 +47,14 @@ export function launchAcpProcess(options: AcpLauncherOptions): AcpProcessHandle 
     env: { ...process.env, ...options.env } as NodeJS.ProcessEnv,
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
+    // On Windows, npm/pnpm-installed CLIs (e.g. `opencode`) are shell shims
+    // (`.cmd`/`.bat`), which `child_process.spawn` cannot exec directly
+    // without a shell (fails with EINVAL/ENOENT) — see
+    // https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows.
+    // `shell: true` is safe here: `command`/`args` come from local executor
+    // config (OpenCodeExecutorOptions), not untrusted user input, and Node
+    // quotes each argv entry for us on Windows.
+    shell: process.platform === 'win32',
   });
 
   const stream = acp.ndJsonStream(
