@@ -258,6 +258,12 @@ MVP：
 - 插件是否向 stdout 写非 ACP 内容。
 - cancel 是否可靠。
 
+> ✅ 已完成（docs/tasks.md T0.2，[#17](https://github.com/bao-linfeng/AgentDock/issues/17)）。
+> 结论：`compatible_with_limitations`，详见
+> [`docs/research/omo-slim-acp-compat-notes.md`](./research/omo-slim-acp-compat-notes.md)。
+> MVP 无需回退到"纯 OpenCode ACP、不启用 OMO Slim"的降级路径；以下 1/2 条为
+> 未来可选加固方向，非当前阻塞项。
+
 如果 OMO Slim 与 ACP pure mode 冲突：
 
 1. MVP 先使用纯 OpenCode ACP。
