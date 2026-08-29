@@ -3,10 +3,23 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { containsModelKey } from '@agentdock/shared';
 import { z } from 'zod';
 
+/**
+ * Push behavior for a project. `enabled: false` (the default) keeps today's
+ * commit-only behavior; a project opts into pushing the agent branch to a
+ * remote once it has somewhere to push to (docs/tasks.md T5.4, #27).
+ */
+export const PushConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  remote: z.string().min(1).default('origin'),
+  /** Extra branches (beyond the project's `defaultBranch`) that must never be pushed to directly. */
+  protectedBranches: z.array(z.string().min(1)).default([]),
+});
+
 /** Per-project mapping: server project id -> local workspace path. */
 export const ProjectMappingSchema = z.object({
   workspacePath: z.string().min(1),
   defaultBranch: z.string().default('main'),
+  push: PushConfigSchema.default({}),
 });
 
 export const RunnerConfigSchema = z.object({
@@ -21,6 +34,8 @@ export const RunnerConfigSchema = z.object({
   allowedRoots: z.array(z.string().min(1)).optional(),
 });
 
+export type PushConfig = z.infer<typeof PushConfigSchema>;
+export type ProjectMapping = z.infer<typeof ProjectMappingSchema>;
 export type RunnerConfig = z.infer<typeof RunnerConfigSchema>;
 
 export class ConfigError extends Error {

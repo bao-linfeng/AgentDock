@@ -29,7 +29,7 @@
 | M5 Git Runtime | T5.1 WorktreeManager | ✅ | #1 / PR #10 |
 | | T5.2 变更检测 | ✅ | #1 / PR #10 |
 | | T5.3 验证（测试命令） | ✅ | #1 / PR #10 |
-| | T5.4 提交 / 推送 | ⬜ | #27 |
+| | T5.4 提交 / 推送 | ✅ | #27 |
 | M6 GitHub | T6.1 App / Token 接入 | ⬜ | #28 |
 | | T6.2 Webhook 验签与去重 | ⬜ | #29 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
@@ -332,11 +332,12 @@ local workspace path
 > 终态收尾，而不是直接杀进程。
 >
 > **[范围边界]** 本任务只做本地 `git commit`（满足 governance 的 `commit`
-> 证据），**不做** `git push` 与 PR 创建——这两项仍是 #27（T5.4）与 #30（T6.5）
-> 的范围，因为仓库目前还没有 GitHub App/Token 接入（#28）可用作 push 目标。
-> 因此对 `fix`/`implement` 意图的任务，若最终没有额外产出 `pull_request`
-> artifact，`decideCompletion` 会按证据规则判定为 `failed`
-> （`errorCode: 'evidence_incomplete'`），这是预期行为，等 #27/#30 落地后
+> 证据），**不做** `git push` 与 PR 创建——`git push`（推送 agent 分支到已配置
+> 的 remote，禁止直推默认/受保护分支）已由 #27（T5.4）补齐，PR 创建仍是
+> #30（T6.5）的范围，因为仓库目前还没有 GitHub App/Token 接入（#28）可用来
+> 调 GitHub API 开 PR。因此对 `fix`/`implement` 意图的任务，若最终没有额外产出
+> `pull_request` artifact，`decideCompletion` 仍会按证据规则判定为 `failed`
+> （`errorCode: 'evidence_incomplete'`），这是预期行为，等 #30 落地后
 > 会自然满足。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
 
 ---
@@ -442,17 +443,30 @@ RunEvent
 
 ## T5.4 Commit / Push
 
-> 🟡 部分完成（#27）
+> ✅ 已完成（#27）
 >
 > `WorktreeManager.commit()` 已随 #24 落地（`packages/git-runtime/src/index.ts`）：
 > 对 worktree 内的变更 `git add -A` + `git commit`，返回新提交的 SHA，供 Runner
-> 主循环产出 `commit` RunArtifact。**推送到 origin 与创建 PR 仍待办**——
-> 需要 #28（GitHub App/Token 接入）提供推送目标后才能实现。
+> 主循环产出 `commit` RunArtifact。**推送到 origin** 由本任务（#27）新增的
+> `WorktreeManager.push()` 完成：复用项目本地已配置好的 git remote/凭据（与人工
+> `git push` 一致），**不**依赖 #28（GitHub App/Token）——那是给 Control
+> Server 侧调 GitHub API（开 PR、回帖）用的凭证，跟本机 `git push` 是两套体系。
+> `push()` 默认会拒绝直推 base/受保护分支，只推 agent 分支本身；没有配置远程时
+> 返回 `pushed: false` 而不是抛错，离线/纯本地仓库可以优雅降级。是否启用推送、
+> 推到哪个 remote、额外的受保护分支列表，由 `runner.config.json` 里每个项目的
+> `push` 字段（`enabled` / `remote` / `protectedBranches`）控制，默认
+> `enabled: false` 保持之前的仅提交行为。Runner 主循环
+> （`apps/runner/src/claim-execute-loop.ts`）在 commit 成功后，若该项目启用了
+> push，会调用 `push()` 并把结果记录为一条 `commit` 类型的 RunArtifact
+> （`metadata.pushed: true` + `remote`/`branch`），供 governance 后续（#30）
+> 判定 `pull_request` 证据前的中间状态参考；push 失败/跳过只记日志，不会让
+> run 失败（证据规则本身仍会因缺 `pull_request` 而判定 `fix`/`implement`
+> 为 `failed`，这是预期行为，等 #30 落地后自然满足）。
 
 - [x] commit（本地提交，`WorktreeManager.commit`；#24）
-- [ ] configurable commit template（Runner 侧已支持 `commitMessageTemplate` 选项，默认模板见 #24；项目级可配置模板仍待办）
-- [ ] push new branch
-- [ ] 禁止 direct push default branch
+- [x] configurable commit template（Runner 侧 `commitMessageTemplate` 选项；#24）
+- [x] push new branch（`WorktreeManager.push()`；Runner 侧按项目 `push.enabled` 开关；#27）
+- [x] 禁止 direct push default branch（`push()` 默认拒绝推送 `baseBranch` / `protectedBranches`；#27）
 
 ---
 

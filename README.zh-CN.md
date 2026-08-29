@@ -30,14 +30,21 @@
 > Run、Run 事件、带取消通道的 Runner 网关，见
 > [`apps/server/README.md`](./apps/server/README.md))。**OpenCode ACP 执行器已
 > 实现并有单元测试**(`packages/agent-runtime`，基于 `@agentclientprotocol/sdk`），
-> **Local Runner 现已打通完整的领取 → 创建工作树 → 执行 → 验证 → 提交 → 上报
-> 主循环**(`apps/runner/src/claim-execute-loop.ts`)，并支持通过心跳通道响应
-> 取消请求。推送提交与创建 Pull Request 尚未实现(另行跟踪，见
-> [里程碑 5](#-里程碑与路线图) /
-> [#27](https://github.com/bao-linfeng/AgentDock/issues/27))——由于尚未接入
-> GitHub App/Token(#28),暂无推送目标,因此 `fix`/`implement` 类型的任务目前会
-> 在证据校验环节判定为 `failed`,待 #27/#30 落地后即可自然满足。**Web 控制台
-> 已构建完成**(仪表盘、任务列表、任务详情含 SSE 实时更新、项目管理,见
+> **Local Runner 现已打通完整的领取 → 创建工作树 → 执行 → 验证 → 提交 → 推送 →
+> 上报主循环**(`apps/runner/src/claim-execute-loop.ts`)，并支持通过心跳通道
+> 响应取消请求。将 agent 分支推送到已配置的远程已经实现
+> (`WorktreeManager.push()`，
+> [#27](https://github.com/bao-linfeng/AgentDock/issues/27))，复用项目本地
+> 已有的 git 远程与凭据(等同于人工 `git push`)，按项目在
+> `runner.config.json` 的 `push.enabled` 开关中启用，且默认拒绝直推
+> base/受保护分支。基于该推送分支创建 Pull Request 尚未实现(另行跟踪，见
+> [里程碑 6](#-里程碑与路线图) /
+> [#30](https://github.com/bao-linfeng/AgentDock/issues/30))——仍需要接入
+> GitHub App/Token([#28](https://github.com/bao-linfeng/AgentDock/issues/28))
+> 才能调用 GitHub API,因此 `fix`/`implement` 类型的任务目前仍会因缺少
+> `pull_request` 证据在证据校验环节判定为 `failed`,待 #30 落地后即可自然
+> 满足。**Web 控制台已构建完成**(仪表盘、任务列表、任务详情含 SSE 实时更新、
+> 项目管理,见
 > [路线图](#-里程碑与路线图) 里程碑 7)。进度与
 > issue 对照见
 > [`docs/tasks.md`](./docs/tasks.md) 与
@@ -246,10 +253,10 @@ AgentDock/
 
 > [!IMPORTANT]
 > **Control Server 现在已经可以跑起来**(里程碑 2)，**Local Runner 现已支持
-> 完整的领取→执行主循环**(里程碑 3,见下文第 3 步)，**Web 控制台已构建完成**
-> (里程碑 7，见下文第 4 步)。提交后的推送与创建 PR 尚未实现(#27/#30),因此
-> 第 3 步反映的是当前实际可运行的效果 —— 分支不会被推送、PR 不会被创建。见
-> [路线图](#-里程碑与路线图)。
+> 完整的领取→执行→推送主循环**(里程碑 3/5,见下文第 3 步)，**Web 控制台已
+> 构建完成**(里程碑 7，见下文第 4 步)。推送后创建 PR 尚未实现(#30),因此
+> 第 3 步反映的是当前实际可运行的效果 —— 按项目配置可选地推送分支，但不会
+> 自动创建 PR。见[路线图](#-里程碑与路线图)。
 
 ### 前置依赖
 
@@ -312,7 +319,12 @@ cp runner.config.example.json runner.config.json
   "projects": {
     "proj_123": {
       "workspacePath": "/path/to/local/project",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "push": {
+        "enabled": false,
+        "remote": "origin",
+        "protectedBranches": []
+      }
     }
   }
 }
@@ -324,8 +336,10 @@ pnpm start
 
 Runner 启动后会先注册、开始心跳，随后每 5 秒轮询一次
 `GET /runner/tasks/claim`；一旦目标项目有排队任务，就会创建独立工作树、
-通过 ACP 运行 OpenCode、执行验证(可选测试命令)、本地提交并上报结果。
-推送分支/创建 PR 尚未实现(#27/#30),所以 `fix`/`implement` 类型的任务目前
+通过 ACP 运行 OpenCode、执行验证(可选测试命令)、本地提交，并在该项目开启了
+`push.enabled` 时把 agent 分支推送到已配置的远程(复用本机已有的 git 凭据；
+默认拒绝直推 base/受保护分支)。基于该分支创建 PR 尚未实现(#30),所以
+`fix`/`implement` 类型的任务目前
 会在证据校验环节判定为失败;不要求 PR 证据的 `general` 类型任务可以正常完成。
 
 ### 4. 启动 Web 控制台
@@ -381,9 +395,9 @@ pnpm dev
 - 🟡 **Milestone 4 —— Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7):[#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` 接口
   - ✅ OpenCode ACP Executor · ACP → RunEvent 桥接（基于 `@agentclientprotocol/sdk`，见 `packages/agent-runtime`）
-- 🟡 **Milestone 5 —— Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+- ✅ **Milestone 5 —— Git Runtime** *(已完成)* ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree 管理、变更检测、验证 ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
-  - 🟡 Commit(本地提交，随 #24 完成) · ⬜ Push(禁止直接 push 默认分支，见 [#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+  - ✅ Commit(本地提交，随 #24 完成) · ✅ Push 新分支 + 拒绝直推 base/受保护分支 ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
 - 🟡 **Milestone 6 —— GitHub 集成** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ⬜ Webhook 验签与去重 · PR 创建 · 回调评论

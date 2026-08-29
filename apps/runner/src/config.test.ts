@@ -24,6 +24,39 @@ describe('RunnerConfigSchema', () => {
     expect(cfg.projects).toEqual({});
   });
 
+  it('defaults a project to push disabled (commit-only behavior)', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: { workspacePath: '/tmp/repo' } },
+    });
+    expect(cfg.projects.proj_1?.push).toEqual({
+      enabled: false,
+      remote: 'origin',
+      protectedBranches: [],
+    });
+  });
+
+  it('accepts an explicit push configuration', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: {
+        proj_1: {
+          workspacePath: '/tmp/repo',
+          push: { enabled: true, remote: 'upstream', protectedBranches: ['release'] },
+        },
+      },
+    });
+    expect(cfg.projects.proj_1?.push).toEqual({
+      enabled: true,
+      remote: 'upstream',
+      protectedBranches: ['release'],
+    });
+  });
+
   it('rejects a bad server url', () => {
     expect(() =>
       RunnerConfigSchema.parse({ serverUrl: 'not-a-url', runnerToken: 't', runnerName: 'r' }),
