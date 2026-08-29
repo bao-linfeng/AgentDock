@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "smoke:acp": "tsx src/smoke/opencode-acp-smoke.ts"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.4.0",

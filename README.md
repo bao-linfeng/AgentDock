@@ -426,8 +426,8 @@ Milestones and progress are tracked in [`docs/tasks.md`](./docs/tasks.md), with 
 full task ↔ issue cross-reference table. Legend: ✅ done · 🟡 partial · ⬜ todo.
 Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 
-- ⬜ **Milestone 0 — Technical validation & protocol definition** ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
-  - OpenCode ACP smoke test · OMO Slim compatibility spike · OpenTag runner code reading
+- 🟡 **Milestone 0 — Technical validation & protocol definition** ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
+  - ✅ OpenCode ACP smoke test ([#16](https://github.com/bao-linfeng/AgentDock/issues/16), `packages/agent-runtime/src/smoke/opencode-acp-smoke.ts`) · ⬜ OMO Slim compatibility spike · ⬜ OpenTag runner code reading
 - 🟡 **Milestone 1 — Monorepo & Protocol package** *(done)*
   - ✅ pnpm workspace scaffolding
   - ✅ `@agentdock/protocol` Zod schemas & Run status state machine (`CallbackRoute` / JSON Schema export still pending)
