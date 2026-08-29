@@ -30,9 +30,13 @@
 > governance, and runner config/secret-redaction. The **NestJS Control Server
 > now runs** (projects, tasks, runs, run events, Runner Gateway with a
 > cancellation channel — see [`apps/server/README.md`](./apps/server/README.md)).
-> The OpenCode ACP executor, the Runner loop and the Web console are **not built
-> yet** — those parts of [Getting Started](#-getting-started) describe the
-> *planned* experience. Progress and the issue mapping are tracked in
+> The **OpenCode ACP executor is implemented and unit-tested**
+> (`packages/agent-runtime`, via `@agentclientprotocol/sdk`), but it is not yet
+> wired into a Runner claim→execute main loop. The **Web console is now built**
+> (Dashboard, Task List, Task Detail with live SSE updates, Projects — see
+> [Milestone 7](#-roadmap)); the Runner loop is still **not built yet** — step 3
+> in [Getting Started](#-getting-started) describes the *planned* experience.
+> Progress and the issue mapping are tracked in
 > [`docs/tasks.md`](./docs/tasks.md) and the
 > [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues).
 
@@ -214,7 +218,7 @@ AgentDock/
 ├── apps/
 │   ├── server/           # NestJS control plane (Task Engine / GitHub Adapter / Runner Gateway / API)
 │   ├── runner/           # Local Runner client (ACP driver / Git worktree / process lifecycle)
-│   └── web/              # Web console & mobile dashboard (Vue 3 / Vite / Pinia / TailwindCSS)
+│   └── web/              # Web console & mobile dashboard (Vue 3 / Vite / Pinia / TanStack Query)
 │
 ├── packages/
 │   ├── protocol/         # Core data models & Zod schemas (AgentTask, AgentRun, RunEvent, Artifact)
@@ -253,9 +257,10 @@ AgentDock/
 ## 🚀 Getting Started
 
 > [!IMPORTANT]
-> The **Control Server runs today** (Milestone 2). The Local Runner loop and the
-> Web console are still being built, so steps 3 and 4 below describe the intended
-> developer experience rather than working commands. See [Roadmap](#-roadmap).
+> The **Control Server runs today** (Milestone 2), and the **Web console is now
+> built** (Milestone 7 — see step 4 below). The Local Runner claim→execute loop
+> is still being built, so step 3 below describes the intended developer
+> experience rather than working commands. See [Roadmap](#-roadmap).
 
 ### Prerequisites
 
@@ -328,14 +333,16 @@ cp runner.config.example.json runner.config.json
 pnpm start
 ```
 
-### 4. Start the Web console (planned)
+### 4. Start the Web console
 
 ```bash
 cd apps/web
 pnpm dev
 ```
 
-Then open `http://localhost:5173`.
+Then open `http://localhost:5173` and sign in with your `API_AUTH_TOKEN`. The
+console proxies `/api/*` to the Control Server in dev (see
+`apps/web/vite.config.ts`).
 
 ---
 
@@ -380,7 +387,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ⬜ Runner-side registration/heartbeat loop · claim→execute loop
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
-  - ⬜ OpenCode ACP executor · ACP → RunEvent bridge
+  - ✅ OpenCode ACP executor · ACP → RunEvent bridge (via `@agentclientprotocol/sdk`; see `packages/agent-runtime`)
 - 🟡 **Milestone 5 — Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree manager, change detection, verification ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
   - ⬜ Commit / push (no direct push to default branch)
@@ -388,14 +395,15 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ⬜ Webhook verification & dedupe · PR creation · callback comments
 - ⬜ **Milestone 7 — Web Dashboard & mobile UX** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
-  - Dashboard, projects, task list, task detail, mobile UX
+  - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
+  - 🟡 Projects (CRUD + Runner mapping done; repository binding pending GitHub App integration #28/#29)
 - 🟡 **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ⬜ Approval model (phase 2)
-- 🟡 **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+- ✅ **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
-  - 🟡 Idempotency: task dedupe keys, atomic claim, guarded complete ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
-  - ⬜ Runner disconnect handling · retry
+  - ✅ Idempotency: task dedupe keys, atomic claim, guarded complete ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ✅ Runner disconnect handling (heartbeat-timeout sweep fails orphaned runs) · retry (new run id, history kept) ([#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39))
 
 ### Explicitly out of scope (until the single-machine OpenCode + GitHub loop works)
 

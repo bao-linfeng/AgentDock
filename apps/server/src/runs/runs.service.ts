@@ -236,6 +236,67 @@ export class RunsService {
     return toRunDto(await this.requireRun(runId));
   }
 
+  /**
+   * Fail an in-flight run because its runner disconnected (docs/tasks.md
+   * T9.1 / #38). Unlike `complete()`, this is server-initiated: there is no
+   * runner left to report a terminal status, so the server applies the
+   * transition itself with a diagnosable error code.
+   */
+  async failDisconnected(runId: string, runnerId: string): Promise<RunDto> {
+    const run = await this.requireRun(runId);
+    if (isTerminal(run.status as RunStatus)) return toRunDto(run);
+
+    await this.prisma.taskRun.update({
+      where: { id: runId },
+      data: {
+        errorCode: 'runner_disconnected',
+        errorMessage: `runner ${runnerId} stopped sending heartbeats while this run was in flight`,
+      },
+    });
+    await this.appendEvent(runId, {
+      type: 'status',
+      payload: {
+        status: 'failed',
+        errorCode: 'runner_disconnected',
+        errorMessage: `runner ${runnerId} stopped sending heartbeats while this run was in flight`,
+      },
+    });
+    return toRunDto(await this.requireRun(runId));
+  }
+
+  /**
+   * Retry a failed run: create a fresh run (new id, `queued`) on the same
+   * task so the runner-claim loop can pick it up again, while the failed
+   * run and its full event history stay untouched (docs/tasks.md T9.2 / #39).
+   */
+  async retry(runId: string): Promise<RunDto> {
+    const run = await this.requireRun(runId);
+    if (run.status !== 'failed') {
+      throw new ConflictException(
+        `only a failed run can be retried (run ${runId} is ${run.status})`,
+      );
+    }
+
+    const activeSibling = await this.prisma.taskRun.findFirst({
+      where: { taskId: run.taskId, status: { notIn: ['succeeded', 'failed', 'cancelled'] } },
+    });
+    if (activeSibling) {
+      throw new ConflictException(
+        `task ${run.taskId} already has an active run (${activeSibling.id}); cancel or wait for it first`,
+      );
+    }
+
+    const retryRun = await this.prisma.taskRun.create({
+      data: { taskId: run.taskId, executor: run.executor },
+    });
+    await this.prisma.task.update({ where: { id: run.taskId }, data: { status: 'queued' } });
+    await this.recordEvent(retryRun.id, 'log', {
+      message: `retrying failed run ${run.id}`,
+      previousRunId: run.id,
+    });
+    return toRunDto(retryRun);
+  }
+
   /** Terminal completion reported by the runner, including artifact metadata. */
   async complete(runId: string, input: CompleteRunInput): Promise<RunDto> {
     const run = await this.requireRun(runId);

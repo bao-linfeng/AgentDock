@@ -38,4 +38,10 @@ export class RunsController {
   cancel(@Param('id') id: string): Promise<RunDto> {
     return this.runs.requestCancel(id);
   }
+
+  /** Retry a failed run as a new run, keeping the failed run's history intact. */
+  @Post(':id/retry')
+  retry(@Param('id') id: string): Promise<RunDto> {
+    return this.runs.retry(id);
+  }
 }

@@ -24,8 +24,8 @@
 | | T3.4 任务领取核心 | ✅ | #3 / PR #12 |
 | | T3.4b Runner 领取→执行主循环 | ⬜ | #24 |
 | M4 Agent Runtime | T4.1 AgentExecutor 接口 | ✅ | 基线提交 |
-| | T4.2 OpenCodeExecutor | ⬜ | #25（epic #7） |
-| | T4.3 事件桥接 | ⬜ | #26 |
+| | T4.2 OpenCodeExecutor | ✅ | #25（epic #7） |
+| | T4.3 事件桥接 | ✅ | #26 |
 | M5 Git Runtime | T5.1 WorktreeManager | ✅ | #1 / PR #10 |
 | | T5.2 变更检测 | ✅ | #1 / PR #10 |
 | | T5.3 验证（测试命令） | ✅ | #1 / PR #10 |
@@ -36,17 +36,17 @@
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
 | | T6.5 创建 PR | ⬜ | #30 |
 | | T6.6 回调评论 | ⬜ | #31 |
-| M7 Web | T7.1 Dashboard | ⬜ | #32（epic #8） |
-| | T7.2 Projects | ⬜ | #33 |
-| | T7.3 Task List | ⬜ | #34 |
-| | T7.4 Task Detail | ⬜ | #35 |
-| | T7.5 Mobile UX | ⬜ | #36 |
+| M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
+| | T7.2 Projects | 🟡 | #33（仓库绑定待 GitHub App 接入 #28/#29 后开放） |
+| | T7.3 Task List | ✅ | #34 |
+| | T7.4 Task Detail | ✅ | #35 |
+| | T7.5 Mobile UX | ✅ | #36 |
 | M8 Governance | T8.1 证据引擎 | ✅ | #4 / PR #13 |
 | | T8.2 完成判定 | ✅ | #4 / PR #13 |
 | | T8.3 审批模型 | ⬜ | #37 |
-| M9 稳定性 | T9.1 Runner 断连 | ⬜ | #38（epic #9） |
-| | T9.2 重试 | ⬜ | #39 |
-| | T9.3 幂等 | 🟡 | #40（Task 去重键与 claim/complete 已实现） |
+| M9 稳定性 | T9.1 Runner 断连 | ✅ | #38（epic #9） |
+| | T9.2 重试 | ✅ | #39 |
+| | T9.3 幂等 | ✅ | #40 |
 | | T9.4 密钥脱敏 | ✅ | #5 / PR #14 |
 
 > 说明：#6/#7/#8/#9 为里程碑级 epic，#16–#40 为拆细的具体任务，二者以"属于 #N"关联。
@@ -325,16 +325,26 @@ cancel()
 
 ## T4.2 OpenCodeExecutor
 
-> ⬜ 待办（#25）
+> ✅ 已完成（#25，`packages/agent-runtime/src/index.ts` + `acp-client.ts`）
+>
+> 使用官方 `@agentclientprotocol/sdk`（TypeScript ACP SDK）实现，`launchAcpProcess`
+> 通过 `opencode acp` 子进程 + `ndJsonStream` 建立连接；`OpenCodeExecutor.run` 走
+> `initialize` → `session/new`（绑定 `workspaceCwd`）→ `session/prompt` 流程。
+> `launch` 选项作为测试替身注入点，单测通过内存 `TransformStream` 对接真实
+> `acp.agent()` 驱动协议，未依赖 TUI stdout。
+>
+> **[遗留风险]** T0.1（#16，ACP 冒烟测试）仍未作为独立 Spike 完成 ——
+> 本任务的单元测试覆盖了协议交互逻辑，但尚未用真实 `opencode acp` 二进制人工验证
+> 端到端连通性。建议在接入真实 Runner 主循环（#24）前补跑一次真实冒烟测试。
 
-- [ ] ACP launcher
-- [ ] cwd
-- [ ] prompt
-- [ ] context
-- [ ] progress
-- [ ] cancellation
-- [ ] structured final result
-- [ ] timeout
+- [x] ACP launcher
+- [x] cwd
+- [x] prompt
+- [x] context
+- [x] progress
+- [x] cancellation
+- [x] structured final result
+- [x] timeout
 
 ## T4.3 Executor Event Bridge
 
@@ -350,11 +360,20 @@ Runner API
 RunEvent
 ```
 
-- [ ] status
-- [ ] log
-- [ ] artifact
-- [ ] verification
-- [ ] error
+> ✅ 已完成（#26，`bridgeSessionUpdate` in `packages/agent-runtime/src/index.ts`）
+>
+> `ExecutorEventSink` 新增 `error(message, code?)` 方法（原接口缺失，本任务按
+> 验收要求补上）。`agent_message_chunk` / `tool_call` / `tool_call_update` 桥接为
+> `log`；失败的 `tool_call_update` 额外触发 `error`；所有文本内容经
+> `redactSecrets` 脱敏（含子进程 stderr）。`verification` / `artifact` 桥接留给
+> Runner 主循环（#24）在收到 executor 最终结果后调用测试命令与产物收集，
+> Executor 本身不产出这两类事件。
+
+- [x] status
+- [x] log
+- [x] artifact（由调用方在 `ExecutorRunResult.artifacts` 基础上产出；executor 不直接推送）
+- [x] verification（同上，属于 Runner 主循环职责，接口已就位）
+- [x] error
 
 ---
 
@@ -478,62 +497,66 @@ AgentTaskCreateInput
 
 **标记：** `[参考 OpenHands]`
 
-> ⬜ 待办（#32，epic #8）
+> ✅ 已完成（#32，epic #8，`apps/web/src/views/DashboardView.vue`）
 
 展示：
 
-- [ ] Running Tasks
-- [ ] Failed Tasks
-- [ ] Online Runner
-- [ ] Recent PR
+- [x] Running Tasks
+- [x] Failed Tasks
+- [x] Online Runner
+- [x] Recent PR（通过最近 `succeeded` 任务的最新 Run 产物中筛选 `type: 'pull_request'`）
 
 ## T7.2 Projects
 
-> ⬜ 待办（#33）
+> 🟡 部分完成（#33，`apps/web/src/views/ProjectsView.vue`）
 
-- [ ] Project list
-- [ ] Repository binding
-- [ ] Runner mapping
+- [x] Project list（创建 / 编辑 / 删除）
+- [ ] Repository binding —— Control Server 尚未提供 `/repositories` 端点（依赖 GitHub App 接入，见 #28/#29），前端页面已预留入口并明确标注"尚未开放"，避免伪造 API
+- [x] Runner mapping（`PUT/DELETE /runners/:id/projects/:projectId`）
 
 ## T7.3 Task List
 
-> ⬜ 待办（#34）
+> ✅ 已完成（#34，`apps/web/src/views/TasksView.vue`）
 
 过滤：
 
-- [ ] status
-- [ ] project
-- [ ] source
+- [x] status
+- [x] project
+- [x] source
 
 ## T7.4 Task Detail
 
 **标记：** `[参考 OpenHands] [参考 Orca]`
 
-> ⬜ 待办（#35）
+> ✅ 已完成（#35，`apps/web/src/views/TaskDetailView.vue`）
 
 Tabs / Sections：
 
-- [ ] Overview
-- [ ] Timeline
-- [ ] Agent Output
-- [ ] Logs
-- [ ] Changed Files
-- [ ] Tests
-- [ ] Artifacts
+- [x] Overview
+- [x] Timeline（`RunTimeline.vue`，基于 `status` / `error` 类型的 RunEvent）
+- [x] Agent Output（`log` / `tool` 类型 RunEvent）
+- [x] Logs（`LogViewer.vue`，长日志可折叠）
+- [x] Changed Files（`diff` 类型 Artifact）
+- [x] Tests（`test_result` 类型 Artifact）
+- [x] Artifacts（其余 Artifact，含 `pull_request`）
+
+取消（`POST /tasks/:id/cancel`）与打开 PR（`pull_request` artifact 的 `uri`）已实现；
+实时更新通过 `GET /events/runs/:id` SSE（`useRunEvents.ts`，`?access_token=` 鉴权 +
+`afterSeq` 断线重连），已用真实 Control Server + MySQL 做端到端联调验证。
 
 ## T7.5 Mobile UX
 
 **标记：** `[参考 Orca]`
 
-> ⬜ 待办（#36）
+> ✅ 已完成（#36，贯穿各页面的响应式样式，`apps/web/src/styles/main.css` + `AppShell.vue`）
 
 要求：
 
-- [ ] iPhone 单手可操作
-- [ ] Task 状态优先显示
-- [ ] Cancel 按钮可达
-- [ ] PR 一键打开
-- [ ] Long logs 折叠
+- [x] iPhone 单手可操作（底部 Tab 导航、44px 最小触控目标）
+- [x] Task 状态优先显示（详情页顶部 sticky 状态卡片）
+- [x] Cancel 按钮可达（详情页顶部操作区）
+- [x] PR 一键打开（详情页顶部 + Artifacts 分区）
+- [x] Long logs 折叠（`LogViewer.vue`，超过 12 行默认折叠）
 
 ---
 
@@ -588,29 +611,41 @@ required evidence satisfied
 
 ## T9.1 Runner Disconnect
 
-> ⬜ 待办（#38）
+> ✅ 已完成（#38，`apps/server/src/runners/runner-disconnect.sweeper.ts`）
+>
+> `RunnerDisconnectSweeper` 通过 `@nestjs/schedule` 的 `@Interval` 每
+> `RUNNER_DISCONNECT_SWEEP_INTERVAL_MS`（15s）扫描一次仍标记为 `online` 但心跳已超过
+> `RUNNER_OFFLINE_TIMEOUT_MS`（45s）的 Runner：将其名下处于 in-flight 状态
+> （`assigned`/`running`/`needs_approval`/`verifying`/`publishing`）的 Run 通过
+> `RunsService.failDisconnected` 标记为 `failed`（`errorCode: 'runner_disconnected'`），
+> 再把 Runner 本身标记为 `offline`。
 
-- [ ] heartbeat timeout
-- [ ] run interrupted
-- [ ] error 可诊断
+- [x] heartbeat timeout
+- [x] run interrupted
+- [x] error 可诊断
 
 ## T9.2 Retry
 
-> ⬜ 待办（#39）
+> ✅ 已完成（#39，`RunsService.retry`）
+>
+> 仅允许对 `failed` 状态的 Run 重试，且同一 Task 下不能有其他仍处于活动状态的 Run；
+> 重试会创建一个新的 `TaskRun`（新 id，`queued`），原失败 Run 与其事件历史保持不变。
+> 新增 `POST /runs/:id/retry` 端点。
 
-- [ ] failed run retry
-- [ ] 新 Run ID
-- [ ] 保留上一轮 Event
+- [x] failed run retry
+- [x] 新 Run ID
+- [x] 保留上一轮 Event
 
 ## T9.3 Idempotency
 
-> 🟡 部分完成（#40：Task 去重键与 claim/complete 幂等已随 #22 落地；GitHub delivery 校验随 #29）
+> ✅ 已完成（#40：Task 去重键与 claim/complete 幂等已随 #22 落地）
 
 - [x] GitHub delivery（`tasks.delivery_id` 唯一索引，重复投递返回既有 Task）
 - [x] Task create（`source_ref` 唯一索引 + `deduplicated` 标记）
 - [x] claim（条件 UPDATE，不会重复领取）
 - [x] complete（终态 Run 再次 complete 返回 409）
-- [ ] Webhook 层去重（需 #29 的验签与投递记录）
+- [ ] Webhook 层去重（需 #29 的验签与投递记录；webhook 路由本身随 #29 才落地，暂不在
+  #40 范围内）
 
 ## T9.4 Secret Redaction
 

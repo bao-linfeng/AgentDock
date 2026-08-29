@@ -28,9 +28,13 @@
 > Run 状态机、Git Worktree 运行时、GitHub 事件归一化、任务队列引擎、证据治理，
 > 以及 Runner 配置/密钥脱敏。**NestJS Control Server 现已可运行**(项目、任务、
 > Run、Run 事件、带取消通道的 Runner 网关，见
-> [`apps/server/README.md`](./apps/server/README.md))。OpenCode ACP 执行器、
-> Runner 主循环与 Web 控制台 **尚未构建** —— 下文 [快速开始](#-快速开始) 中相应
-> 步骤描述的是 *规划中* 的体验。进度与 issue 对照见
+> [`apps/server/README.md`](./apps/server/README.md))。**OpenCode ACP 执行器已
+> 实现并有单元测试**(`packages/agent-runtime`，基于 `@agentclientprotocol/sdk`），
+> 但尚未接入 Runner 的领取→执行主循环。**Web 控制台已构建完成**(仪表盘、任务
+> 列表、任务详情含 SSE 实时更新、项目管理，见[路线图](#-里程碑与路线图) 里程碑 7)；
+> Runner 主循环 **尚未构建** —— 下文 [快速开始](#-快速开始) 中第 3 步描述的是
+> *规划中* 的体验。进度与
+> issue 对照见
 > [`docs/tasks.md`](./docs/tasks.md) 与
 > [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues)。
 
@@ -197,7 +201,7 @@ AgentDock/
 ├── apps/
 │   ├── server/           # NestJS 控制端(Task Engine / GitHub Adapter / Runner Gateway / API)
 │   ├── runner/           # 本地 Runner 客户端(ACP 驱动 / Git Worktree / 进程生命周期)
-│   └── web/              # Web 控制台与移动端 Dashboard(Vue 3 / Vite / Pinia / TailwindCSS)
+│   └── web/              # Web 控制台与移动端 Dashboard(Vue 3 / Vite / Pinia / TanStack Query)
 │
 ├── packages/
 │   ├── protocol/         # 核心数据模型与 Zod Schema(AgentTask, AgentRun, RunEvent, Artifact)
@@ -236,8 +240,9 @@ AgentDock/
 ## 🚀 快速开始
 
 > [!IMPORTANT]
-> **Control Server 现在已经可以跑起来**(里程碑 2)。Local Runner 主循环与 Web
-> 控制台仍在开发中,因此下面第 3、4 步描述的是规划中的体验。见
+> **Control Server 现在已经可以跑起来**(里程碑 2)，**Web 控制台已构建完成**
+> (里程碑 7，见下文第 4 步)。Local Runner 领取→执行主循环仍在开发中,因此下面
+> 第 3 步描述的是规划中的体验。见
 > [路线图](#-里程碑与路线图)。
 
 ### 前置依赖
@@ -311,14 +316,15 @@ cp runner.config.example.json runner.config.json
 pnpm start
 ```
 
-### 4. 启动 Web 控制台(规划中)
+### 4. 启动 Web 控制台
 
 ```bash
 cd apps/web
 pnpm dev
 ```
 
-打开浏览器访问 `http://localhost:5173`。
+打开浏览器访问 `http://localhost:5173`，用 `API_AUTH_TOKEN` 登录。开发环境下
+控制台会把 `/api/*` 代理到 Control Server(见 `apps/web/vite.config.ts`)。
 
 ---
 
@@ -362,7 +368,7 @@ pnpm dev
   - ⬜ Runner 侧注册/心跳循环 · 领取→执行主循环
 - 🟡 **Milestone 4 —— Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7):[#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` 接口
-  - ⬜ OpenCode ACP Executor · ACP → RunEvent 桥接
+  - ✅ OpenCode ACP Executor · ACP → RunEvent 桥接（基于 `@agentclientprotocol/sdk`，见 `packages/agent-runtime`）
 - 🟡 **Milestone 5 —— Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree 管理、变更检测、验证 ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
   - ⬜ Commit / Push(禁止直接 push 默认分支)
@@ -370,14 +376,15 @@ pnpm dev
   - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ⬜ Webhook 验签与去重 · PR 创建 · 回调评论
 - ⬜ **Milestone 7 —— Web Dashboard 与移动端适配** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
-  - Dashboard、项目、任务列表、任务详情、移动端体验
+  - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
+  - 🟡 项目（CRUD 与 Runner 映射已完成；仓库绑定待 GitHub App 接入 #28/#29 后开放）
 - 🟡 **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ⬜ 审批模型(第二阶段)
-- 🟡 **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+- ✅ **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
-  - 🟡 幂等:Task 去重键、原子 claim、complete 守卫 ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
-  - ⬜ 断线重连处理 · 重试
+  - ✅ 幂等:Task 去重键、原子 claim、complete 守卫 ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ✅ 断线重连处理(心跳超时扫描，中断孤儿 Run) · 重试(新 Run ID，保留历史) ([#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39))
 
 ### 明确不做(在单机 OpenCode + GitHub 闭环跑通之前)
 
