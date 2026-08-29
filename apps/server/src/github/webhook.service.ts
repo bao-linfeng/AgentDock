@@ -102,6 +102,9 @@ export class GitHubWebhookService {
         intent: normalized.intent,
         prompt: normalized.prompt,
         createdBy: normalized.actor,
+        callbackRepo: normalized.callbackRepo,
+        callbackIssueNumber: normalized.callbackIssueNumber,
+        callbackIsPullRequest: normalized.callbackIsPullRequest,
       });
       return {
         status: result.deduplicated ? 'deduplicated' : 'accepted',

@@ -3,6 +3,7 @@ import type { TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import type { PullRequestService } from '../github/pull-request.service.js';
+import type { RunCallbackService } from '../github/run-callback.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { RunsService, redactPayload, statusFromPayload } from './runs.service.js';
 
@@ -40,8 +41,21 @@ function fakePullRequests(
   return { openForRun } as unknown as PullRequestService;
 }
 
-function service(prisma: PrismaService, pullRequests?: PullRequestService): RunsService {
-  return new RunsService(prisma, new RunEventsBus(), pullRequests ?? fakePullRequests());
+function fakeCallbacks(): RunCallbackService {
+  return { post: vi.fn().mockResolvedValue(undefined) } as unknown as RunCallbackService;
+}
+
+function service(
+  prisma: PrismaService,
+  pullRequests?: PullRequestService,
+  callbacks?: RunCallbackService,
+): RunsService {
+  return new RunsService(
+    prisma,
+    new RunEventsBus(),
+    pullRequests ?? fakePullRequests(),
+    callbacks ?? fakeCallbacks(),
+  );
 }
 
 describe('redactPayload', () => {
@@ -75,8 +89,11 @@ describe('RunsService.applyStatus', () => {
   it('advances the run and derives the coarse task status', async () => {
     const runUpdate = vi.fn().mockResolvedValue(run({ status: 'running' }));
     const taskUpdate = vi.fn().mockResolvedValue({});
+    const callbacks = fakeCallbacks();
     const svc = service(
       fakePrisma({ taskRun: { update: runUpdate }, task: { update: taskUpdate } }),
+      undefined,
+      callbacks,
     );
 
     await svc.applyStatus(run({ status: 'assigned' }), 'running');
@@ -88,6 +105,24 @@ describe('RunsService.applyStatus', () => {
     expect(taskUpdate).toHaveBeenCalledWith({
       where: { id: 'task_1' },
       data: { status: 'running' },
+    });
+    expect(callbacks.post).toHaveBeenCalledWith('running', { runId: 'run_1' });
+  });
+
+  it('posts a failed callback with the persisted error message', async () => {
+    const runUpdate = vi.fn().mockResolvedValue(run({ status: 'failed', errorMessage: 'boom' }));
+    const callbacks = fakeCallbacks();
+    const svc = service(
+      fakePrisma({ taskRun: { update: runUpdate }, task: { update: vi.fn() } }),
+      undefined,
+      callbacks,
+    );
+
+    await svc.applyStatus(run({ status: 'running' }), 'failed');
+
+    expect(callbacks.post).toHaveBeenCalledWith('failed', {
+      runId: 'run_1',
+      errorMessage: 'boom',
     });
   });
 
@@ -424,7 +459,8 @@ describe('RunsService.complete', () => {
       base: 'main',
       head: 'agent/task_1-fix',
     });
-    const svc = service(prisma, fakePullRequests(openForRun));
+    const callbacks = fakeCallbacks();
+    const svc = service(prisma, fakePullRequests(openForRun), callbacks);
 
     const dto = await svc.complete('run_1', {
       status: 'failed',
@@ -449,6 +485,12 @@ describe('RunsService.complete', () => {
     const runUpdateData = taskRunUpdate.mock.calls[0][0].data;
     expect(runUpdateData.errorCode).toBeNull();
     expect(runUpdateData.errorMessage).toBeNull();
+
+    expect(callbacks.post).toHaveBeenCalledWith('pr_created', {
+      runId: 'run_1',
+      pullRequest: { number: 42, url: 'https://github.com/acme/widgets/pull/42' },
+    });
+    expect(callbacks.post).toHaveBeenCalledWith('completed', { runId: 'run_1' });
 
     expect(dto).toBeDefined();
   });

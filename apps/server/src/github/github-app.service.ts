@@ -149,4 +149,24 @@ export class GitHubAppService {
     const [pr] = response.data;
     return pr ? { number: pr.number, url: pr.html_url, title: pr.title } : null;
   }
+
+  /**
+   * Post a comment on an Issue or Pull Request thread (docs/tasks.md T6.6,
+   * #31). GitHub exposes both under the same `issues.createComment`
+   * endpoint — there is no separate "PR comment" API for a top-level
+   * (non-review) comment.
+   */
+  async createIssueComment(
+    installationId: string,
+    params: { owner: string; repo: string; issueNumber: number; body: string },
+  ): Promise<{ id: number; url: string }> {
+    const octokit = await this.installationOctokit(installationId);
+    const response = await octokit.rest.issues.createComment({
+      owner: params.owner,
+      repo: params.repo,
+      issue_number: params.issueNumber,
+      body: params.body,
+    });
+    return { id: response.data.id, url: response.data.html_url };
+  }
 }

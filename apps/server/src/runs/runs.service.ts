@@ -14,6 +14,7 @@ import type { Artifact, Prisma, RunEvent, TaskRun } from '@prisma/client';
 import { toIso } from '../common/serialize.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import { PullRequestService } from '../github/pull-request.service.js';
+import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService, isUniqueConstraintError } from '../prisma/prisma.service.js';
 import type {
   AppendRunEventInput,
@@ -100,6 +101,7 @@ export class RunsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RunEventsBus) private readonly bus: RunEventsBus,
     @Inject(PullRequestService) private readonly pullRequests: PullRequestService,
+    @Inject(RunCallbackService) private readonly callbacks: RunCallbackService,
   ) {}
 
   async requireRun(runId: string): Promise<TaskRun> {
@@ -210,6 +212,24 @@ export class RunsService {
       where: { id: run.taskId },
       data: { status: deriveTaskStatus(next) },
     });
+
+    // Status callbacks (docs/tasks.md T6.6, #31) are best-effort and must
+    // never block the transition itself — `RunCallbackService.post` already
+    // swallows its own errors, so these calls are fire-and-forget here too.
+    // "assigned" (picked up) is triggered from `RunnerGatewayService.claim`
+    // instead, since claiming updates the run status via a direct atomic
+    // `updateMany` rather than going through `applyStatus`.
+    if (next === 'running') {
+      void this.callbacks.post('running', { runId: run.id });
+    } else if (next === 'failed') {
+      void this.callbacks.post('failed', {
+        runId: run.id,
+        errorMessage: updated.errorMessage ?? undefined,
+      });
+    } else if (next === 'succeeded') {
+      void this.callbacks.post('completed', { runId: run.id });
+    }
+
     return updated;
   }
 
@@ -335,6 +355,10 @@ export class RunsService {
         title: pr.title,
         uri: pr.url,
         metadata: { number: pr.number, base: pr.base, head: pr.head },
+      });
+      void this.callbacks.post('pr_created', {
+        runId,
+        pullRequest: { number: pr.number, url: pr.url },
       });
 
       const task = await this.prisma.task.findUniqueOrThrow({ where: { id: run.taskId } });

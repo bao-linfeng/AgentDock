@@ -1,6 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { Runner, TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { RunCallbackService } from '../github/run-callback.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { RunnersService } from '../runners/runners.service.js';
 import type { RunsService } from '../runs/runs.service.js';
@@ -59,12 +60,15 @@ function build(prisma: Record<string, any>, runs: Record<string, any> = {}) {
   const runnersStub = {
     touchHeartbeat: vi.fn().mockResolvedValue(undefined),
   } as unknown as RunnersService;
+  const post = vi.fn().mockResolvedValue(undefined);
+  const callbacksStub = { post } as unknown as RunCallbackService;
   const service = new RunnerGatewayService(
     prisma as unknown as PrismaService,
     runsStub,
     runnersStub,
+    callbacksStub,
   );
-  return { service, recordEvent, runnersStub };
+  return { service, recordEvent, runnersStub, callbacksStub };
 }
 
 describe('RunnerGatewayService.requireRegistered', () => {
@@ -93,7 +97,7 @@ describe('RunnerGatewayService.claim', () => {
 
   it('atomically assigns the oldest queued run and returns the local workspace path', async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const { service, recordEvent } = build({
+    const { service, recordEvent, callbacksStub } = build({
       runnerProject: {
         findMany: vi.fn().mockResolvedValue([{ projectId: 'proj_1', workspacePath: 'D:/repo' }]),
       },
@@ -122,6 +126,7 @@ describe('RunnerGatewayService.claim', () => {
       runnerId: 'rnr_1',
       runnerName: 'dev-box',
     });
+    expect(callbacksStub.post).toHaveBeenCalledWith('picked_up', { runId: 'run_1' });
   });
 
   it('skips a run that another claim already took and tries the next candidate', async () => {

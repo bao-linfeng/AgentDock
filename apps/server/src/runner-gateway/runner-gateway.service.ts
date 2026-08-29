@@ -1,6 +1,7 @@
 import type { TaskIntent, TaskSource } from '@agentdock/protocol';
 import { ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Runner } from '@prisma/client';
+import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnersService } from '../runners/runners.service.js';
 import type {
@@ -41,6 +42,7 @@ export class RunnerGatewayService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RunsService) private readonly runs: RunsService,
     @Inject(RunnersService) private readonly runners: RunnersService,
+    @Inject(RunCallbackService) private readonly callbacks: RunCallbackService,
   ) {}
 
   /** A runner must register before it can claim or report anything. */
@@ -100,6 +102,7 @@ export class RunnerGatewayService {
         runnerId: runner.id,
         runnerName: runner.name,
       });
+      void this.callbacks.post('picked_up', { runId: run.id });
 
       const workspacePath = workspaceByProject.get(run.task.projectId);
       if (!workspacePath) continue;

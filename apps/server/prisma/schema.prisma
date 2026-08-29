@@ -135,6 +135,12 @@ model Task {
   prompt     String     @db.Text
   status     TaskStatus @default(queued)
   createdBy  String?
+  // GitHub status-callback target (docs/tasks.md T6.6, #31): the
+  // `owner/repo` and issue/PR number the triggering event's thread belongs
+  // to. Both null for `source = web` tasks (no thread to reply to).
+  callbackRepo         String?
+  callbackIssueNumber  Int?
+  callbackIsPullRequest Boolean @default(false)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 

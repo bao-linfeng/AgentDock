@@ -172,6 +172,9 @@ describe('GitHubWebhookService.handle', () => {
       intent: 'fix',
       prompt: 'fix the duplicate callback',
       createdBy: 'alice',
+      callbackRepo: 'bao/agentdock',
+      callbackIssueNumber: 7,
+      callbackIsPullRequest: false,
     });
     expect(result).toEqual({ status: 'accepted', taskId: 'task_1' });
   });

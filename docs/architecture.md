@@ -316,7 +316,7 @@ packages/governance
 >
 > **[已澄清]** `projects.workspace_key` 是**逻辑标识**（服务端与 Runner 共用的项目键，不含路径）；`runner_projects.workspace_path` 是**该 Runner 本机的绝对路径**。root containment 校验相对 Runner 本地配置的 `allowedRoots`，由 **Runner** 执行（Control Server 不访问本地文件系统）；Server 只负责保证"未映射 / 未启用的项目不会被领取"。
 >
-> **[实现补充]** 表名映射为下列 snake_case 名称，列名沿用 Prisma 的 camelCase；`task_runs` 另有 `cancel_requested_at`（见 §9）与 `created_at` / `updated_at`，`tasks` 另有 `delivery_id`（GitHub 投递去重）。
+> **[实现补充]** 表名映射为下列 snake_case 名称，列名沿用 Prisma 的 camelCase；`task_runs` 另有 `cancel_requested_at`（见 §9）与 `created_at` / `updated_at`，`tasks` 另有 `delivery_id`（GitHub 投递去重）与 `callback_repo` / `callback_issue_number` / `callback_is_pull_request`（GitHub 状态回帖目标，§11 / #31：仅 `source = github` 的任务会写入，指向触发该任务的 Issue/PR 线程）。
 
 ### projects
 
@@ -380,6 +380,9 @@ intent
 prompt
 status
 created_by
+callback_repo
+callback_issue_number
+callback_is_pull_request
 created_at
 updated_at
 ```

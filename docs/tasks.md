@@ -35,7 +35,7 @@
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
 | | T6.5 创建 PR | ✅ | #30 |
-| | T6.6 回调评论 | ⬜ | #31 |
+| | T6.6 回调评论 | ✅ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
 | | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
 | | T7.3 Task List | ✅ | #34 |
@@ -592,15 +592,26 @@ AgentTaskCreateInput
 
 ## T6.6 GitHub Callback
 
-> ⬜ 待办（#31）
+> ✅ 完成（#31，`apps/server/src/github/run-callback.service.ts`）
 
-原线程：
+Run 生命周期状态变化时，向触发该任务的原始 Issue/PR 线程发一条状态回帖评论。
+触发点：`RunnerGatewayService.claim`（picked up）、`RunsService.applyStatus`
+（running / failed）、`RunsService.complete`（PR created / completed）。回帖是
+best-effort：调用失败只记 warning 日志，绝不影响 run 本身的状态转换（与
+`PullRequestService`/#30 的失败姿态一致）。
 
-- [ ] picked up
-- [ ] running
-- [ ] failed
-- [ ] PR created
-- [ ] completed
+回帖目标（`owner/repo` + issue/PR number）来自 `packages/github-adapter` 在
+webhook 侧的归一化结果，写入 `Task.callbackRepo` /
+`Task.callbackIssueNumber` / `Task.callbackIsPullRequest`（仅
+`source: 'github'` 的任务会有值；`source: 'web'` 的任务没有回帖目标，静默跳
+过）。与 PR 创建一样，仅当项目**恰好绑定一个**仓库且该仓库记录了
+`installationId` 时才会尝试发帖。
+
+- [x] picked up（已领取）
+- [x] running（运行中）
+- [x] failed（失败）
+- [x] PR created（已创建 PR）
+- [x] completed（已完成）
 
 ---
 
