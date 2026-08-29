@@ -34,7 +34,7 @@
 | | T6.2 Webhook 验签与去重 | ✅ | #29 / PR #49 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
-| | T6.5 创建 PR | ⬜ | #30 |
+| | T6.5 创建 PR | ✅ | #30 |
 | | T6.6 回调评论 | ⬜ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
 | | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
@@ -333,13 +333,18 @@ local workspace path
 > 终态收尾，而不是直接杀进程。
 >
 > **[范围边界]** 本任务只做本地 `git commit`（满足 governance 的 `commit`
-> 证据），**不做** `git push` 与 PR 创建——`git push`（推送 agent 分支到已配置
-> 的 remote，禁止直推默认/受保护分支）已由 #27（T5.4，PR #47）补齐，GitHub
-> App/Token 接入（#28，PR #48）与 webhook 验签/去重（#29，PR #49）均已完成；
-> PR 创建仍是 #30（T6.5）的范围。因此对 `fix`/`implement` 意图的任务，若最终
-> 没有额外产出 `pull_request` artifact，`decideCompletion` 仍会按证据规则判定
-> 为 `failed`（`errorCode: 'evidence_incomplete'`），这是预期行为，等 #30 落地后
-> 会自然满足。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
+> 证据）与（若项目启用）`git push`；PR 创建不在本任务范围内，而是 Control
+> Server 侧在收到 `complete` 上报后按需自动补齐（见 #30 / T6.5）。`git push`
+> （推送 agent 分支到已配置的 remote，禁止直推默认/受保护分支）已由 #27
+> （T5.4，PR #47）补齐，GitHub App/Token 接入（#28，PR #48）、webhook 验签/
+> 去重（#29，PR #49）与 PR 创建（#30，T6.5）均已完成。因此对 `fix`/
+> `implement` 意图的任务，Runner 上报的初次判定即使因缺 `pull_request` 证据
+> 报告为 `failed`（`errorCode: 'evidence_incomplete'`），只要该 run 已经有一条
+> `metadata.pushed: true` 的 `commit` artifact，Control Server 的
+> `RunsService.complete` 就会在写入终态前自动尝试开 PR、补上
+> `pull_request` artifact 并重新判定——最终对外呈现的状态可能是
+> `succeeded`，与 Runner 本地判定不完全一致，这是预期行为（见 T6.5 的设计
+> 取舍说明）。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
 
 ---
 
@@ -459,10 +464,11 @@ RunEvent
 > `enabled: false` 保持之前的仅提交行为。Runner 主循环
 > （`apps/runner/src/claim-execute-loop.ts`）在 commit 成功后，若该项目启用了
 > push，会调用 `push()` 并把结果记录为一条 `commit` 类型的 RunArtifact
-> （`metadata.pushed: true` + `remote`/`branch`），供 governance 后续（#30）
-> 判定 `pull_request` 证据前的中间状态参考；push 失败/跳过只记日志，不会让
-> run 失败（证据规则本身仍会因缺 `pull_request` 而判定 `fix`/`implement`
-> 为 `failed`，这是预期行为，等 #30 落地后自然满足）。
+> （`metadata.pushed: true` + `remote`/`branch`），Control Server 在收到
+> `complete` 上报时用这个标记判断是否可以自动开 PR 补齐 `pull_request` 证据
+> （#30，见 T6.5）；push 失败/跳过只记日志，不会让
+> run 失败（若没有 push 或 push 失败，证据规则仍会因缺 `pull_request` 而判定
+> `fix`/`implement` 为 `failed`，这是预期行为）。
 
 - [x] commit（本地提交，`WorktreeManager.commit`；#24）
 - [x] configurable commit template（Runner 侧 `commitMessageTemplate` 选项；#24）
@@ -551,13 +557,38 @@ AgentTaskCreateInput
 
 ## T6.5 Pull Request Creation
 
-> ⬜ 待办（#30）
+> ✅ 已完成（#30，`apps/server/src/github/pull-request.service.ts` +
+> `github-app.service.ts` 的 `createPullRequest`；接入点见
+> `apps/server/src/runs/runs.service.ts` 的 `RunsService.complete`）
+>
+> **[设计取舍]** PR 创建放在 **Control Server** 侧，而不是 Runner 侧：Runner
+> 主循环（`apps/runner/src/claim-execute-loop.ts`，#24）在 commit/push 完成后
+> 会用 `@agentdock/governance` 的 `decideCompletion` 本地判定证据是否齐全——
+> 但 Runner 不持有、也不应该持有 GitHub App 凭据（那是 Control Server 的凭据，
+> 见 requirements.md 原则 1："云端不直接启动 OpenCode / 本地凭据留在本机"的
+> 镜像约束：GitHub 写权限反过来只能留在云端）。因此当 Runner 上报
+> `complete({ status: 'failed', errorCode: 'evidence_incomplete' })`，且已有
+> 一条 `metadata.pushed: true` 的 `commit` artifact 时，`RunsService.complete`
+> 会先尝试通过 `PullRequestService`（内部调用
+> `GitHubAppService.createPullRequest`，Octokit `pulls.create`）开 PR
+> （`base` = 项目的 `defaultBranch`，`head` = 已推送的分支），成功后补一条
+> `pull_request` artifact，再用 `decideCompletion` 重新判定——评估通过则把
+> 最终状态由 `failed` 改写为 `succeeded`。
+>
+> 仅当该项目**恰好绑定一个** GitHub 仓库、且该仓库记录了
+> `installationId` 时才会尝试开 PR；零个或多个绑定仓库（目标歧义）、
+> App 未配置、或 GitHub API 调用失败，都是静默跳过（记 warning 日志，run 保持
+> 原本的 `failed`），不会让 run 本身报错。对同一分支重复 `complete`
+> （如 retry）会先查已存在的 open PR 并直接复用，保持调用幂等。
+>
+> PR 正文包含 `taskId`/`runId` 与截断后的原始 prompt，便于人工追溯来源；标题
+> 取 prompt 首行。
 
-- [ ] title
-- [ ] body
-- [ ] base
-- [ ] head
-- [ ] link artifact
+- [x] title（取 prompt 首行）
+- [x] body（关联 taskId/runId + prompt）
+- [x] base（项目 `defaultBranch`）
+- [x] head（已推送的 agent 分支）
+- [x] link artifact（`pull_request` RunArtifact，含 PR number/url，供 #4 证据引擎与 Web `ArtifactsPanel` 消费）
 
 ## T6.6 GitHub Callback
 

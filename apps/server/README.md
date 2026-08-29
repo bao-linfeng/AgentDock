@@ -101,6 +101,21 @@ Notes:
   existing task (`deduplicated: true`) instead of creating a duplicate; claim
   is a single conditional `UPDATE`, and completing an already-terminal run
   returns 409 instead of double-applying artifacts/events.
+- Pull Request creation (docs/tasks.md T6.5 / #30): when a runner reports
+  `complete({ status: 'failed', errorCode: 'evidence_incomplete' })` for a run
+  that already pushed a commit (a `commit` artifact with `metadata.pushed:
+  true`), `RunsService.complete` tries to open a PR through
+  `PullRequestService`/`GitHubAppService` (`base` = the project's
+  `defaultBranch`, `head` = the pushed branch) *before* recording the terminal
+  status. On success a `pull_request` artifact (title/url/PR number) is
+  appended and `@agentdock/governance`'s `decideCompletion` is re-evaluated,
+  so a `fix`/`implement` run that only needed the PR to satisfy evidence flips
+  to `succeeded`. This only fires when the project has exactly one bound
+  repository with a GitHub App installation id — with zero or more than one
+  bound repository, or when the App isn't configured, PR creation is skipped
+  (not an error) and the run stays `failed`. Re-completing against a branch
+  that already has an open PR reuses that PR instead of erroring (idempotent
+  retries).
 
 ## GitHub Webhook (`POST /github/webhook`)
 

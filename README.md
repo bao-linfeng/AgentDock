@@ -22,7 +22,7 @@
 ---
 
 > [!NOTE]
-> **Project Status: early development — Control Server up, Runner claim→execute loop wired.**
+> **Project Status: early development — Control Server up, Runner claim→execute loop wired, Pull Request creation now automated.**
 >
 > The monorepo scaffolding is in place and several foundation packages are
 > implemented and unit-tested: protocol schemas & run-status state machine,
@@ -39,13 +39,18 @@
 > [#27](https://github.com/bao-linfeng/AgentDock/issues/27)) and reuses
 > whatever git remote/credentials are already set up in the project's
 > checkout, opt-in per project via `runner.config.json`'s `push.enabled` —
-> direct pushes to the base/protected branch are refused. Opening a Pull
-> Request from that pushed branch is not implemented yet (tracked separately,
-> see [Milestone 6](#-roadmap) / [#30](https://github.com/bao-linfeng/AgentDock/issues/30)),
-> which still needs a GitHub App/token integration
-> ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)) to call the
-> GitHub API — so a `fix`/`implement` run currently completes as `failed` on
-> the evidence check (missing the `pull_request` artifact) until that lands.
+> direct pushes to the base/protected branch are refused. **Opening a Pull
+> Request from that pushed branch is now implemented**
+> ([#30](https://github.com/bao-linfeng/AgentDock/issues/30),
+> `apps/server/src/github/pull-request.service.ts`): once a run reports a
+> pushed commit but is otherwise missing the `pull_request` evidence, the
+> Control Server (which holds the GitHub App credentials from
+> [#28](https://github.com/bao-linfeng/AgentDock/issues/28)) opens the PR
+> itself and re-evaluates completion — so `fix`/`implement` runs against a
+> project with exactly one bound repository now complete as `succeeded`
+> instead of failing on evidence. Posting a callback comment back to the
+> originating GitHub thread is still open
+> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)).
 > The **Web console is now built**
 > (Dashboard, Task List, Task Detail with live SSE updates, Projects — see
 > [Milestone 7](#-roadmap)). Progress and the issue mapping are tracked in
@@ -271,10 +276,13 @@ AgentDock/
 > [!IMPORTANT]
 > The **Control Server runs today** (Milestone 2), the **Local Runner now runs
 > the full claim→execute→push loop** (Milestone 3/5 — see step 3 below), and
-> the **Web console is now built** (Milestone 7 — see step 4 below). Opening a
-> PR after a run's push is not implemented yet (#30), so step 3 reflects what
-> actually runs today: an optional push happens (opt-in per project), but no
-> PR is opened. See [Roadmap](#-roadmap).
+> the **Web console is now built** (Milestone 7 — see step 4 below). The
+> Control Server now opens a Pull Request automatically once a run pushes a
+> commit ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)), so step 3
+> reflects what actually runs today end to end: push (opt-in per project) →
+> Control Server opens the PR → run completes as `succeeded`. Posting a
+> callback comment on the originating GitHub thread is still open (#31). See
+> [Roadmap](#-roadmap).
 
 ### Prerequisites
 
@@ -358,10 +366,13 @@ project it creates an isolated worktree, runs OpenCode via ACP, verifies
 (optional test command), commits locally, and — if `push.enabled` is set for
 that project — pushes the agent branch to the configured remote (reusing
 whatever git credentials are already set up locally; direct pushes to the
-base/protected branch are refused). Opening a PR from that branch is not
-implemented yet (#30), so `fix`/`implement` tasks currently finish as
-`failed` on the evidence check (missing the `pull_request` artifact) until
-that lands — `general` tasks (no PR requirement) complete normally.
+base/protected branch are refused). Once the Control Server sees a pushed
+commit, it opens a Pull Request itself (#30, using the GitHub App credentials
+from repository binding — this requires the target project to have exactly
+one bound repository), so `fix`/`implement` tasks now complete as
+`succeeded` end to end; `general` tasks (no PR requirement) complete
+normally regardless. Posting the run's outcome back as a GitHub comment is
+still open (#31).
 
 ### 4. Start the Web console
 
@@ -425,7 +436,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ✅ GitHub App/Installation auth & repository↔project binding ([#28](https://github.com/bao-linfeng/AgentDock/issues/28), `apps/server/src/github`)
   - ✅ Webhook signature verification & delivery dedupe ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
-  - ⬜ PR creation · callback comments
+  - ✅ PR creation ([#30](https://github.com/bao-linfeng/AgentDock/issues/30), `apps/server/src/github/pull-request.service.ts`) · ⬜ callback comments ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))
 - ⬜ **Milestone 7 — Web Dashboard & mobile UX** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
   - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29)

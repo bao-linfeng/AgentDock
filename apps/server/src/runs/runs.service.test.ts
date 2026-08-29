@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { RunEventsBus } from '../events/run-events.bus.js';
+import type { PullRequestService } from '../github/pull-request.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { RunsService, redactPayload, statusFromPayload } from './runs.service.js';
 
@@ -32,8 +33,15 @@ function fakePrisma(overrides: Record<string, any>): PrismaService {
   return overrides as unknown as PrismaService;
 }
 
-function service(prisma: PrismaService): RunsService {
-  return new RunsService(prisma, new RunEventsBus());
+function fakePullRequests(
+  // biome-ignore lint/suspicious/noExplicitAny: minimal structural stub
+  openForRun: any = vi.fn().mockResolvedValue(null),
+): PullRequestService {
+  return { openForRun } as unknown as PullRequestService;
+}
+
+function service(prisma: PrismaService, pullRequests?: PullRequestService): RunsService {
+  return new RunsService(prisma, new RunEventsBus(), pullRequests ?? fakePullRequests());
 }
 
 describe('redactPayload', () => {
@@ -328,5 +336,148 @@ describe('RunsService.retry', () => {
       }),
     );
     await expect(svc.retry('run_1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('RunsService.complete', () => {
+  function completePrisma(overrides: Record<string, unknown> = {}) {
+    const artifactCreate = vi.fn().mockResolvedValue({});
+    const taskRunUpdate = vi.fn().mockResolvedValue(run({ status: 'publishing' }));
+    const runEventCreate = vi.fn().mockImplementation(async ({ data }) => ({
+      id: 'evt',
+      runId: data.runId,
+      seq: data.seq,
+      type: data.type,
+      payloadJson: data.payloadJson,
+      createdAt: now,
+    }));
+    const prisma = fakePrisma({
+      taskRun: {
+        findUnique: vi.fn().mockResolvedValue(run({ status: 'publishing' })),
+        update: taskRunUpdate,
+      },
+      task: {
+        update: vi.fn().mockResolvedValue({}),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'task_1', intent: 'fix' }),
+      },
+      artifact: { create: artifactCreate },
+      runEvent: {
+        aggregate: vi.fn().mockResolvedValue({ _max: { seq: 0 } }),
+        create: runEventCreate,
+      },
+      ...overrides,
+    });
+    return { prisma, artifactCreate, taskRunUpdate };
+  }
+
+  it('persists artifacts and the terminal status as reported when no PR is needed', async () => {
+    const { prisma, artifactCreate } = completePrisma();
+    const openForRun = vi.fn().mockResolvedValue(null);
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    const dto = await svc.complete('run_1', {
+      status: 'succeeded',
+      artifacts: [{ type: 'commit', title: 'agentdock: task_1' }],
+    });
+
+    expect(dto).toBeDefined();
+    expect(openForRun).not.toHaveBeenCalled();
+    expect(artifactCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not attempt a PR when the failure is not evidence_incomplete', async () => {
+    const { prisma } = completePrisma();
+    const openForRun = vi.fn().mockResolvedValue(null);
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    await svc.complete('run_1', {
+      status: 'failed',
+      errorCode: 'executor_failed',
+      errorMessage: 'boom',
+      artifacts: [],
+    });
+
+    expect(openForRun).not.toHaveBeenCalled();
+  });
+
+  it('does not attempt a PR without a pushed commit artifact', async () => {
+    const { prisma } = completePrisma();
+    const openForRun = vi.fn().mockResolvedValue(null);
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    await svc.complete('run_1', {
+      status: 'failed',
+      errorCode: 'evidence_incomplete',
+      errorMessage: 'missing required evidence: pull_request',
+      artifacts: [{ type: 'commit', title: 'agentdock: task_1' }],
+    });
+
+    expect(openForRun).not.toHaveBeenCalled();
+  });
+
+  it('opens a PR and flips the run to succeeded once evidence is complete', async () => {
+    const { prisma, artifactCreate, taskRunUpdate } = completePrisma();
+    const openForRun = vi.fn().mockResolvedValue({
+      number: 42,
+      url: 'https://github.com/acme/widgets/pull/42',
+      title: 'Fix payment callback',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    const dto = await svc.complete('run_1', {
+      status: 'failed',
+      errorCode: 'evidence_incomplete',
+      errorMessage: 'missing required evidence: pull_request',
+      branch: 'agent/task_1-fix',
+      artifacts: [
+        { type: 'diff', title: '1 file changed' },
+        { type: 'test_result', title: 'tests passed' },
+        { type: 'commit', title: 'agentdock: task_1', metadata: { pushed: true } },
+      ],
+    });
+
+    expect(openForRun).toHaveBeenCalledWith('run_1', 'agent/task_1-fix');
+    // diff + test_result + commit + pull_request = 4 artifacts persisted
+    expect(artifactCreate).toHaveBeenCalledTimes(4);
+    const persistedTypes = artifactCreate.mock.calls.map(
+      (call: unknown[]) => (call[0] as { data: { type: string } }).data.type,
+    );
+    expect(persistedTypes).toContain('pull_request');
+
+    const runUpdateData = taskRunUpdate.mock.calls[0][0].data;
+    expect(runUpdateData.errorCode).toBeNull();
+    expect(runUpdateData.errorMessage).toBeNull();
+
+    expect(dto).toBeDefined();
+  });
+
+  it('keeps the run failed when a PR cannot be opened', async () => {
+    const { prisma, taskRunUpdate } = completePrisma();
+    const openForRun = vi.fn().mockResolvedValue(null);
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    await svc.complete('run_1', {
+      status: 'failed',
+      errorCode: 'evidence_incomplete',
+      errorMessage: 'missing required evidence: pull_request',
+      branch: 'agent/task_1-fix',
+      artifacts: [{ type: 'commit', title: 'agentdock: task_1', metadata: { pushed: true } }],
+    });
+
+    expect(openForRun).toHaveBeenCalled();
+    const runUpdateData = taskRunUpdate.mock.calls[0][0].data;
+    expect(runUpdateData.errorCode).toBe('evidence_incomplete');
+  });
+
+  it('refuses to complete an already-terminal run', async () => {
+    const prisma = fakePrisma({
+      taskRun: { findUnique: vi.fn().mockResolvedValue(run({ status: 'succeeded' })) },
+    });
+    const svc = service(prisma);
+    await expect(
+      svc.complete('run_1', { status: 'succeeded', artifacts: [] }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

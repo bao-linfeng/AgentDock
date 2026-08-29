@@ -80,3 +80,97 @@ describe('GitHubAppService installation access', () => {
     });
   });
 });
+
+describe('GitHubAppService.createPullRequest', () => {
+  it('opens a PR and returns its number/url/title', async () => {
+    const create = vi.fn().mockResolvedValue({
+      data: { number: 7, html_url: 'https://github.com/acme/widgets/pull/7', title: 'Fix bug' },
+    });
+    const fakeOctokit = { rest: { pulls: { create } } };
+    const appFactory = vi.fn().mockReturnValue({
+      octokit: {},
+      getInstallationOctokit: vi.fn().mockResolvedValue(fakeOctokit),
+    });
+    const service = new GitHubAppService(config(), appFactory as never);
+
+    const pr = await service.createPullRequest('123', {
+      owner: 'acme',
+      repo: 'widgets',
+      title: 'Fix bug',
+      body: 'body',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+
+    expect(pr).toEqual({
+      number: 7,
+      url: 'https://github.com/acme/widgets/pull/7',
+      title: 'Fix bug',
+    });
+    expect(create).toHaveBeenCalledWith({
+      owner: 'acme',
+      repo: 'widgets',
+      title: 'Fix bug',
+      body: 'body',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+  });
+
+  it('falls back to the existing open PR when GitHub reports one already exists', async () => {
+    const create = vi.fn().mockRejectedValue(new Error('A pull request already exists'));
+    const list = vi.fn().mockResolvedValue({
+      data: [{ number: 7, html_url: 'https://github.com/acme/widgets/pull/7', title: 'Fix bug' }],
+    });
+    const fakeOctokit = { rest: { pulls: { create, list } } };
+    const appFactory = vi.fn().mockReturnValue({
+      octokit: {},
+      getInstallationOctokit: vi.fn().mockResolvedValue(fakeOctokit),
+    });
+    const service = new GitHubAppService(config(), appFactory as never);
+
+    const pr = await service.createPullRequest('123', {
+      owner: 'acme',
+      repo: 'widgets',
+      title: 'Fix bug',
+      body: 'body',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+
+    expect(pr).toEqual({
+      number: 7,
+      url: 'https://github.com/acme/widgets/pull/7',
+      title: 'Fix bug',
+    });
+    expect(list).toHaveBeenCalledWith({
+      owner: 'acme',
+      repo: 'widgets',
+      base: 'main',
+      head: 'acme:agent/task_1-fix',
+      state: 'open',
+    });
+  });
+
+  it('rethrows when the create failure is not an "already exists" case', async () => {
+    const create = vi.fn().mockRejectedValue(new Error('boom'));
+    const list = vi.fn().mockResolvedValue({ data: [] });
+    const fakeOctokit = { rest: { pulls: { create, list } } };
+    const appFactory = vi.fn().mockReturnValue({
+      octokit: {},
+      getInstallationOctokit: vi.fn().mockResolvedValue(fakeOctokit),
+    });
+    const service = new GitHubAppService(config(), appFactory as never);
+
+    await expect(
+      service.createPullRequest('123', {
+        owner: 'acme',
+        repo: 'widgets',
+        title: 'Fix bug',
+        body: 'body',
+        base: 'main',
+        head: 'agent/task_1-fix',
+      }),
+    ).rejects.toThrow('boom');
+  });
+});

@@ -1,4 +1,6 @@
+import { decideCompletion } from '@agentdock/governance';
 import { type RunStatus, RunStatusSchema, canTransition, isTerminal } from '@agentdock/protocol';
+import type { RunArtifact, TaskIntent } from '@agentdock/protocol';
 import { redactSecrets } from '@agentdock/shared';
 import { deriveTaskStatus } from '@agentdock/task-engine';
 import {
@@ -11,6 +13,7 @@ import {
 import type { Artifact, Prisma, RunEvent, TaskRun } from '@prisma/client';
 import { toIso } from '../common/serialize.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
+import { PullRequestService } from '../github/pull-request.service.js';
 import { PrismaService, isUniqueConstraintError } from '../prisma/prisma.service.js';
 import type {
   AppendRunEventInput,
@@ -96,6 +99,7 @@ export class RunsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RunEventsBus) private readonly bus: RunEventsBus,
+    @Inject(PullRequestService) private readonly pullRequests: PullRequestService,
   ) {}
 
   async requireRun(runId: string): Promise<TaskRun> {
@@ -297,11 +301,51 @@ export class RunsService {
     return toRunDto(retryRun);
   }
 
-  /** Terminal completion reported by the runner, including artifact metadata. */
+  /**
+   * Terminal completion reported by the runner, including artifact metadata.
+   *
+   * Before applying the runner's reported status, this tries to open a Pull
+   * Request when the run looks like it's only failing evidence because a PR
+   * doesn't exist yet (docs/tasks.md T6.5, #30): the runner-side
+   * `decideCompletion` (`apps/runner/src/claim-execute-loop.ts`) cannot call
+   * the GitHub API itself — only the Control Server holds the GitHub App
+   * credentials (docs/requirements.md principle 1: Runner never touches
+   * cloud secrets, Server never touches source/model keys, but PR creation
+   * is a Server-side credential, not a local one). If a PR is opened, a
+   * `pull_request` artifact is appended and the completion decision is
+   * re-evaluated with `decideCompletion` before the terminal status event is
+   * recorded — turning what the runner reported as `failed
+   * (evidence_incomplete)` into `succeeded` once the PR closes the gap.
+   */
   async complete(runId: string, input: CompleteRunInput): Promise<RunDto> {
     const run = await this.requireRun(runId);
     if (isTerminal(run.status as RunStatus)) {
       throw new ConflictException(`run ${runId} already finished with status ${run.status}`);
+    }
+
+    const artifacts: RunArtifact[] = [...input.artifacts];
+    let status = input.status;
+    let errorCode = input.errorCode;
+    let errorMessage = input.errorMessage;
+
+    const pr = await this.maybeOpenPullRequest(runId, input, artifacts);
+    if (pr) {
+      artifacts.push({
+        type: 'pull_request',
+        title: pr.title,
+        uri: pr.url,
+        metadata: { number: pr.number, base: pr.base, head: pr.head },
+      });
+
+      const task = await this.prisma.task.findUniqueOrThrow({ where: { id: run.taskId } });
+      const decision = decideCompletion(task.intent as TaskIntent, artifacts);
+      if (decision.status === 'succeeded') {
+        status = 'succeeded';
+        errorCode = undefined;
+        errorMessage = undefined;
+      } else {
+        errorMessage = `missing required evidence: ${decision.missing.join(', ')}`;
+      }
     }
 
     await this.prisma.taskRun.update({
@@ -309,12 +353,12 @@ export class RunsService {
       data: {
         branch: input.branch ?? undefined,
         worktreePath: input.worktreePath ?? undefined,
-        errorCode: input.errorCode ?? undefined,
-        errorMessage: input.errorMessage ? redactSecrets(input.errorMessage) : undefined,
+        errorCode: errorCode ?? null,
+        errorMessage: errorMessage ? redactSecrets(errorMessage) : null,
       },
     });
 
-    for (const artifact of input.artifacts) {
+    for (const artifact of artifacts) {
       await this.prisma.artifact.create({
         data: {
           runId,
@@ -331,12 +375,31 @@ export class RunsService {
 
     await this.appendEvent(runId, {
       type: 'status',
-      payload: {
-        status: input.status,
-        errorCode: input.errorCode,
-        errorMessage: input.errorMessage,
-      },
+      payload: { status, errorCode, errorMessage },
     });
     return toRunDto(await this.requireRun(runId));
+  }
+
+  /**
+   * Only attempts a PR when the runner's own evidence check failed
+   * specifically for a missing `pull_request` (`errorCode ===
+   * 'evidence_incomplete'`) and there is a pushed commit artifact to open a
+   * PR from. Returns `null` (no-op) in every other case — including when a
+   * `pull_request` artifact was already reported by the runner.
+   */
+  private async maybeOpenPullRequest(
+    runId: string,
+    input: CompleteRunInput,
+    artifacts: RunArtifact[],
+  ) {
+    if (input.status !== 'failed' || input.errorCode !== 'evidence_incomplete') return null;
+    if (artifacts.some((a) => a.type === 'pull_request')) return null;
+
+    const hasPushedCommit = artifacts.some(
+      (a) => a.type === 'commit' && a.metadata?.pushed === true,
+    );
+    if (!hasPushedCommit) return null;
+
+    return this.pullRequests.openForRun(runId, input.branch);
   }
 }

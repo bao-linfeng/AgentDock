@@ -53,6 +53,9 @@ importers:
       '@agentdock/github-adapter':
         specifier: workspace:*
         version: link:../../packages/github-adapter
+      '@agentdock/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
       '@agentdock/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
