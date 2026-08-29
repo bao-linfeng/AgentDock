@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GitHubAppService } from './github-app.service.js';
+import { resolveTargetRepository } from './repository-resolver.js';
 
 /** Lifecycle points that get a status comment on the originating thread (#31). */
 export type RunCallbackKind = 'picked_up' | 'running' | 'failed' | 'pr_created' | 'completed';
@@ -46,6 +47,11 @@ function buildBody(kind: RunCallbackKind, ctx: RunCallbackContext): string {
  * `callbackIssueNumber`, set by `GitHubWebhookService` from the normalized
  * webhook event — see `packages/github-adapter`). `source: 'web'` tasks have
  * no thread to reply to and are silently skipped.
+ *
+ * The target repository is resolved by `resolveTargetRepository` (#51):
+ * since these tasks always carry a `callbackRepo`, multi-repository projects
+ * work as long as the originating repository is one of the project's bound
+ * repositories.
  */
 @Injectable()
 export class RunCallbackService {
@@ -69,8 +75,13 @@ export class RunCallbackService {
     if (!task.callbackRepo || task.callbackIssueNumber === null) return;
 
     const { project } = task;
-    if (project.repositories.length !== 1) return;
-    const repository = project.repositories[0];
+    const repository = resolveTargetRepository(
+      project.repositories,
+      task.callbackRepo,
+      this.logger,
+      `run ${ctx.runId}`,
+    );
+    if (!repository) return;
     if (!repository.installationId) return;
 
     try {

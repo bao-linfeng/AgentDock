@@ -47,8 +47,14 @@
 > Control Server (which holds the GitHub App credentials from
 > [#28](https://github.com/bao-linfeng/AgentDock/issues/28)) opens the PR
 > itself and re-evaluates completion — so `fix`/`implement` runs against a
-> project with exactly one bound repository now complete as `succeeded`
-> instead of failing on evidence. **Posting a status callback comment back to
+> bound repository now complete as `succeeded` instead of failing on
+> evidence; **the PR target now resolves correctly for projects with
+> multiple bound repositories too**
+> ([#51](https://github.com/bao-linfeng/AgentDock/issues/51),
+> `apps/server/src/github/repository-resolver.ts`), by matching the
+> triggering task's originating `owner/repo` against the project's bound
+> repositories instead of requiring exactly one. **Posting a status callback
+> comment back to
 > the originating GitHub thread is now implemented**
 > ([#31](https://github.com/bao-linfeng/AgentDock/issues/31),
 > `apps/server/src/github/run-callback.service.ts`): the Control Server posts

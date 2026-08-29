@@ -110,12 +110,17 @@ Notes:
   status. On success a `pull_request` artifact (title/url/PR number) is
   appended and `@agentdock/governance`'s `decideCompletion` is re-evaluated,
   so a `fix`/`implement` run that only needed the PR to satisfy evidence flips
-  to `succeeded`. This only fires when the project has exactly one bound
-  repository with a GitHub App installation id — with zero or more than one
-  bound repository, or when the App isn't configured, PR creation is skipped
-  (not an error) and the run stays `failed`. Re-completing against a branch
-  that already has an open PR reuses that PR instead of erroring (idempotent
-  retries).
+  to `succeeded`. Which bound repository to target is resolved by
+  `resolveTargetRepository` (docs/tasks.md T6.5 follow-up / #51): GitHub-
+  sourced tasks carry the originating `callbackRepo` (`owner/repo`), so a
+  project with multiple bound repositories is supported as long as
+  `callbackRepo` names one of them; tasks with no `callbackRepo` (typically
+  `source: 'web'`) still require the project to have exactly one bound
+  repository, since there is nothing to disambiguate with. When no
+  repository can be resolved, or the App isn't configured, PR creation is
+  skipped (not an error) and the run stays `failed`. Re-completing against a
+  branch that already has an open PR reuses that PR instead of erroring
+  (idempotent retries).
 - GitHub status callback comments (docs/tasks.md T6.6 / #31): at each key run
   lifecycle point — picked up (`RunnerGatewayService.claim`), running, failed
   (`RunsService.applyStatus`), PR created, completed (`RunsService.complete`)
@@ -124,10 +129,11 @@ Notes:
   captured at webhook-ingest time from `@agentdock/github-adapter`'s
   normalized event and stored on the `Task` row (`callbackRepo` /
   `callbackIssueNumber` / `callbackIsPullRequest`); `source: 'web'` tasks have
-  none of these set and are silently skipped. Like PR creation, this only
-  fires when the project has exactly one bound repository with an
-  installation id, and every call is best-effort — a failed comment post is
-  logged as a warning and never blocks or fails the run itself.
+  none of these set and are silently skipped. Like PR creation, the target
+  repository is resolved by `resolveTargetRepository` (#51) using that same
+  `callbackRepo`, so multi-repository projects are supported here too; every
+  call is best-effort and a failed comment post is logged as a warning and
+  never blocks or fails the run itself.
 
 ## GitHub Webhook (`POST /github/webhook`)
 

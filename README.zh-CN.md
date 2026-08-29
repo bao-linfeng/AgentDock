@@ -43,8 +43,13 @@
 > `apps/server/src/github/pull-request.service.ts`):当某个 Run 已推送
 > Commit 但仍缺 `pull_request` 证据时，持有 GitHub App 凭据的 Control Server
 > (凭据来自 [#28](https://github.com/bao-linfeng/AgentDock/issues/28) 的仓库
-> 绑定)会自动开 PR 并重新判定完成状态——因此绑定了恰好一个仓库的项目，其
-> `fix`/`implement` 类型任务现在可以在证据校验环节判定为 `succeeded`。**把结果
+> 绑定)会自动开 PR 并重新判定完成状态——因此绑定了仓库的项目，其
+> `fix`/`implement` 类型任务现在可以在证据校验环节判定为 `succeeded`；**项目
+> 绑定多个仓库时的 PR 目标选择问题现已修复**
+> ([#51](https://github.com/bao-linfeng/AgentDock/issues/51)，
+> `apps/server/src/github/repository-resolver.ts`)：通过匹配触发任务的来源
+> `owner/repo` 与项目已绑定的仓库列表来确定目标仓库，而不再要求项目"恰好绑定
+> 一个仓库"。**把结果
 > 回评到原 GitHub 讨论线程现已实现**
 > ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)，
 > `apps/server/src/github/run-callback.service.ts`):Control Server 会在

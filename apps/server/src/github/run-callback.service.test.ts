@@ -60,7 +60,7 @@ describe('RunCallbackService.post', () => {
     expect(githubApp.createIssueComment).not.toHaveBeenCalled();
   });
 
-  it('does nothing when the project has no or ambiguous bound repositories', async () => {
+  it('does nothing when the project has no bound repositories', async () => {
     const githubApp = {
       isConfigured: () => true,
       createIssueComment: vi.fn(),
@@ -79,6 +79,59 @@ describe('RunCallbackService.post', () => {
     await service.post('picked_up', { runId: 'run_1' });
 
     expect(githubApp.createIssueComment).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when callbackRepo does not match any bound repository', async () => {
+    const githubApp = {
+      isConfigured: () => true,
+      createIssueComment: vi.fn(),
+    } as unknown as GitHubAppService;
+    const run = fakeRun({
+      task: {
+        id: 'task_1',
+        callbackRepo: 'acme/unbound',
+        callbackIssueNumber: 7,
+        project: { repositories: [{ owner: 'acme', repo: 'widgets', installationId: 'i1' }] },
+      },
+    });
+    const prisma = fakePrisma({ taskRun: { findUnique: vi.fn().mockResolvedValue(run) } });
+    const service = new RunCallbackService(prisma, githubApp);
+
+    await service.post('picked_up', { runId: 'run_1' });
+
+    expect(githubApp.createIssueComment).not.toHaveBeenCalled();
+  });
+
+  it('posts to the repository named by callbackRepo when the project has multiple bound repositories (#51)', async () => {
+    const createIssueComment = vi.fn().mockResolvedValue({ id: 1, url: 'https://x' });
+    const githubApp = {
+      isConfigured: () => true,
+      createIssueComment,
+    } as unknown as GitHubAppService;
+    const run = fakeRun({
+      task: {
+        id: 'task_1',
+        callbackRepo: 'acme/backend',
+        callbackIssueNumber: 7,
+        project: {
+          repositories: [
+            { owner: 'acme', repo: 'frontend', installationId: 'i1' },
+            { owner: 'acme', repo: 'backend', installationId: 'i2' },
+          ],
+        },
+      },
+    });
+    const prisma = fakePrisma({ taskRun: { findUnique: vi.fn().mockResolvedValue(run) } });
+    const service = new RunCallbackService(prisma, githubApp);
+
+    await service.post('picked_up', { runId: 'run_1' });
+
+    expect(createIssueComment).toHaveBeenCalledWith('i2', {
+      owner: 'acme',
+      repo: 'backend',
+      issueNumber: 7,
+      body: expect.stringContaining('run_1'),
+    });
   });
 
   it('does nothing when the bound repository has no installationId', async () => {
