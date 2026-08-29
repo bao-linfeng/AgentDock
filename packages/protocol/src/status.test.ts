@@ -9,17 +9,11 @@ import {
 
 describe('run status state machine', () => {
   it('walks the happy path queued -> succeeded', () => {
-    const path = [
-      'queued',
-      'assigned',
-      'running',
-      'verifying',
-      'publishing',
-      'succeeded',
-    ] as const;
+    const path = ['queued', 'assigned', 'running', 'verifying', 'publishing', 'succeeded'] as const;
     for (let i = 0; i < path.length - 1; i++) {
-      const from = path[i]!;
-      const to = path[i + 1]!;
+      const from = path[i];
+      const to = path[i + 1];
+      if (from === undefined || to === undefined) throw new Error('unreachable');
       expect(canTransition(from, to)).toBe(true);
     }
   });

@@ -1,0 +1,12 @@
+# Normalize line endings: keep LF in the repo and working tree on all platforms
+# so tooling (biome) stays consistent between Windows/macOS/Linux.
+* text=auto eol=lf
+
+# Explicitly treat common binary types as binary.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
