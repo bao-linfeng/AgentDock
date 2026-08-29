@@ -326,6 +326,11 @@ function registerClientHandlers(
         .catch(() => 'denied' as const);
 
       await sink.log(`permission ${decision}: ${summary}`);
+      // Requesting approval moves the run to `needs_approval` server-side
+      // (docs/tasks.md T8.3, #37); report back to `running` now that a
+      // decision has been made so the run's visible status doesn't stay
+      // stuck on `needs_approval` for the rest of the executor's work.
+      await sink.status('running').catch(() => {});
       if (decision === 'denied') {
         return { outcome: { outcome: 'cancelled' as const } };
       }

@@ -170,7 +170,7 @@ function formatTime(iso?: string): string {
         </div>
         <p v-if="cancelError" class="error-text">{{ cancelError }}</p>
 
-        <ApprovalPanel :run-id="activeRunId" />
+        <ApprovalPanel :run-id="activeRunId" :events="allEvents" />
       </div>
 
       <nav class="tab-bar" aria-label="任务详情分区">

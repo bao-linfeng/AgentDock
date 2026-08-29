@@ -84,9 +84,25 @@ export class ApprovalsService {
    * Create a pending approval for a run and record it as a `run_events`
    * entry (type `approval`) so the Web timeline/SSE stream surfaces it
    * immediately, the same way artifacts do.
+   *
+   * Idempotent under retry (mirrors `claim`/`complete` elsewhere on the
+   * Runner Gateway): if the run already has a pending approval for the same
+   * action + summary, that row is returned instead of creating a duplicate,
+   * so a Runner retry after a network blip doesn't leave a human resolving
+   * one row while the Runner keeps polling for a different `approvalId`.
    */
   async request(runId: string, input: RequestApprovalInput): Promise<ApprovalDto> {
     await this.prisma.taskRun.findUniqueOrThrow({ where: { id: runId } });
+
+    const existing = await this.prisma.approval.findFirst({
+      where: {
+        runId,
+        status: 'pending',
+        action: input.action,
+        summary: input.summary ?? null,
+      },
+    });
+    if (existing) return toApprovalDto(existing);
 
     const approval = await this.prisma.approval.create({
       data: {
@@ -126,6 +142,27 @@ export class ApprovalsService {
   async pendingForRun(runId: string): Promise<Approval | null> {
     return this.prisma.approval.findFirst({
       where: { runId, status: 'pending' },
+      orderBy: { requestedAt: 'asc' },
+    });
+  }
+
+  /**
+   * Every approval for a run that a Runner might still be polling for a
+   * decision on (docs/tasks.md T8.3, #37): pending ones (still awaiting a
+   * human) *and* recently resolved ones, so a poller looking for a specific
+   * `approvalId` can observe the transition out of `pending` — a Runner
+   * that only ever saw approvals filtered to `status: 'pending'` would never
+   * see a resolution, since the row disappears from that filter the moment
+   * it stops being pending. Bounded to the last hour of resolved approvals
+   * so this doesn't grow unbounded over a long-running run.
+   */
+  async approvalsForHeartbeat(runId: string): Promise<Approval[]> {
+    const resolvedSince = new Date(Date.now() - 60 * 60_000);
+    return this.prisma.approval.findMany({
+      where: {
+        runId,
+        OR: [{ status: 'pending' }, { resolvedAt: { gte: resolvedSince } }],
+      },
       orderBy: { requestedAt: 'asc' },
     });
   }

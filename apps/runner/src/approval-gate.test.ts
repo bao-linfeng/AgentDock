@@ -38,13 +38,13 @@ describe('RunnerApprovalGate.requestShellApproval', () => {
         runId: 'run_1',
         status: 'needs_approval',
         cancelRequested: false,
-        approval: { approvalId: 'app_1', action: 'shell', status: 'pending' },
+        approvals: [{ approvalId: 'app_1', action: 'shell', status: 'pending' }],
       })
       .mockResolvedValueOnce({
         runId: 'run_1',
         status: 'running',
         cancelRequested: false,
-        approval: { approvalId: 'app_1', action: 'shell', status: 'approved' },
+        approvals: [{ approvalId: 'app_1', action: 'shell', status: 'approved' }],
       });
     const client = fakeClient({ requestApproval, runHeartbeat });
     const sleep = vi.fn().mockResolvedValue(undefined);
@@ -60,13 +60,31 @@ describe('RunnerApprovalGate.requestShellApproval', () => {
     expect(runHeartbeat).toHaveBeenCalledTimes(2);
   });
 
+  it('finds its own approvalId among several concurrent pending approvals', async () => {
+    const requestApproval = vi.fn().mockResolvedValue({ id: 'app_2', status: 'pending' });
+    const runHeartbeat = vi.fn().mockResolvedValue({
+      runId: 'run_1',
+      status: 'needs_approval',
+      cancelRequested: false,
+      approvals: [
+        { approvalId: 'app_1', action: 'shell', status: 'pending' },
+        { approvalId: 'app_2', action: 'shell', status: 'approved' },
+      ],
+    });
+    const client = fakeClient({ requestApproval, runHeartbeat });
+    const gate = new RunnerApprovalGate({ client, sleep: vi.fn().mockResolvedValue(undefined) });
+
+    const decision = await gate.requestShellApproval({ runId: 'run_1', summary: 'x', detail: {} });
+    expect(decision).toBe('approved');
+  });
+
   it('treats a denied decision from the poll as denied', async () => {
     const requestApproval = vi.fn().mockResolvedValue({ id: 'app_1', status: 'pending' });
     const runHeartbeat = vi.fn().mockResolvedValue({
       runId: 'run_1',
       status: 'running',
       cancelRequested: false,
-      approval: { approvalId: 'app_1', action: 'shell', status: 'denied' },
+      approvals: [{ approvalId: 'app_1', action: 'shell', status: 'denied' }],
     });
     const client = fakeClient({ requestApproval, runHeartbeat });
     const gate = new RunnerApprovalGate({ client, sleep: vi.fn().mockResolvedValue(undefined) });
@@ -81,7 +99,7 @@ describe('RunnerApprovalGate.requestShellApproval', () => {
       runId: 'run_1',
       status: 'needs_approval',
       cancelRequested: false,
-      approval: { approvalId: 'app_1', action: 'shell', status: 'pending' },
+      approvals: [{ approvalId: 'app_1', action: 'shell', status: 'pending' }],
     });
     const client = fakeClient({ requestApproval, runHeartbeat });
     let now = 0;

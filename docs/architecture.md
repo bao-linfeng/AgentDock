@@ -485,7 +485,7 @@ MVP 实现（已完成，#22；审批相关端点见 #37）：
 Runner → POST /runner/register
 Runner → GET  /runner/tasks/claim
 Runner → POST /runner/runs/:id/events
-Runner → POST /runner/runs/:id/heartbeat      # 返回 { cancelRequested, approval? }
+Runner → POST /runner/runs/:id/heartbeat      # 返回 { cancelRequested, approvals[] }
 Runner → POST /runner/runs/:id/approvals      # 请求审批（shell/push/destructive）
 Runner → POST /runner/runs/:id/complete
 Runner → POST /runner/heartbeat          # 空闲心跳
@@ -496,7 +496,9 @@ Runner → POST /runner/heartbeat          # 空闲心跳
 > 请求的 shell 工具调用、`push`、或标记为 `destructive` 的操作）时调用
 > `POST /runner/runs/:id/approvals` 创建一条 pending `Approval` 并将 Run 转入
 > `needs_approval`；随后持续轮询 `POST /runner/runs/:id/heartbeat`，其响应体的
-> `approval` 字段带回该审批的最新状态。Web 端调用
+> `approvals` 数组带回该 run 所有仍在等待或最近（约一小时内）已决议的审批状态——
+> 一个 run 可能同时有多个待审批项（例如并发的 ACP shell 工具调用权限请求），
+> 数组设计避免了轮询者只能看到"最早一条"而互相阻塞。Web 端调用
 > `POST /approvals/:id/resolve`（`{ decision: 'approved' | 'denied' }`）完成
 >人工决议。等待期间 Runner 会阻塞对应操作（ACP 侧是阻塞 agent 进程本身，不
 > kill 掉），超时（默认 24h）未决议按拒绝处理，不会让 Run 无限期挂起。

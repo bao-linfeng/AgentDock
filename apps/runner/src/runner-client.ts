@@ -71,7 +71,12 @@ export interface RunHeartbeatResponse {
   runId: string;
   status: string;
   cancelRequested: boolean;
-  approval?: PendingApprovalStatus;
+  /**
+   * Every approval this run has pending, plus any resolved recently — a run
+   * can have more than one in flight at once, so match on `approvalId`
+   * rather than assuming there is only one (docs/tasks.md T8.3, #37).
+   */
+  approvals: PendingApprovalStatus[];
 }
 
 export interface RunEventDto {

@@ -167,14 +167,16 @@ export class RunnerGatewayService {
     if (note) {
       await this.runs.recordEvent(runId, 'log', { message: note, source: 'heartbeat' });
     }
-    const pending = await this.approvals.pendingForRun(runId);
+    const pending = await this.approvals.approvalsForHeartbeat(runId);
     return {
       runId: run.id,
       status: run.status,
       cancelRequested: run.cancelRequestedAt !== null,
-      approval: pending
-        ? { approvalId: pending.id, action: pending.action, status: pending.status }
-        : undefined,
+      approvals: pending.map((approval) => ({
+        approvalId: approval.id,
+        action: approval.action,
+        status: approval.status,
+      })),
     };
   }
 
@@ -183,7 +185,7 @@ export class RunnerGatewayService {
    * runner is about to run a shell command on the executor's behalf, push
    * the agent branch, or perform another operation it flags as destructive.
    * Transitions the run to `needs_approval` (the runner should stop and poll
-   * `runHeartbeat` for the decision — see `RunHeartbeatResponseDto.approval`)
+   * `runHeartbeat` for the decision — see `RunHeartbeatResponseDto.approvals`)
    * unless the run is already there (idempotent under retry).
    */
   async requestApproval(

@@ -43,10 +43,11 @@ function fakePrisma(overrides: Record<string, any>): PrismaService {
 
 describe('ApprovalsService.request', () => {
   it('creates a pending approval and publishes a run event', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
     const create = vi.fn().mockResolvedValue(approval());
     const bus = new RunEventsBus();
     const publish = vi.spyOn(bus, 'publish');
-    const service = new ApprovalsService(fakePrisma({ approval: { create } }), bus);
+    const service = new ApprovalsService(fakePrisma({ approval: { findFirst, create } }), bus);
 
     const result = await service.request('run_1', {
       action: 'shell',
@@ -63,8 +64,12 @@ describe('ApprovalsService.request', () => {
   });
 
   it('redacts secrets embedded in the detail payload before persisting', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
     const create = vi.fn().mockResolvedValue(approval());
-    const service = new ApprovalsService(fakePrisma({ approval: { create } }), new RunEventsBus());
+    const service = new ApprovalsService(
+      fakePrisma({ approval: { findFirst, create } }),
+      new RunEventsBus(),
+    );
 
     await service.request('run_1', {
       action: 'push',
@@ -75,6 +80,21 @@ describe('ApprovalsService.request', () => {
     expect(JSON.stringify(data.detailJson)).not.toContain(
       'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
     );
+  });
+
+  it('is idempotent: returns the existing pending approval instead of creating a duplicate (docs/tasks.md T8.3, #37)', async () => {
+    const existing = approval({ id: 'app_existing' });
+    const findFirst = vi.fn().mockResolvedValue(existing);
+    const create = vi.fn();
+    const service = new ApprovalsService(
+      fakePrisma({ approval: { findFirst, create } }),
+      new RunEventsBus(),
+    );
+
+    const result = await service.request('run_1', { action: 'shell', summary: 'run x' });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(result.id).toBe('app_existing');
   });
 });
 
@@ -145,5 +165,36 @@ describe('ApprovalsService.pendingForRun', () => {
       new RunEventsBus(),
     );
     expect(await service.pendingForRun('run_1')).toBeNull();
+  });
+});
+
+describe('ApprovalsService.approvalsForHeartbeat', () => {
+  it('returns both pending and recently resolved approvals for a run', async () => {
+    const rows = [approval({ id: 'app_1' }), approval({ id: 'app_2', status: 'approved' })];
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const service = new ApprovalsService(
+      fakePrisma({ approval: { findMany } }),
+      new RunEventsBus(),
+    );
+
+    const result = await service.approvalsForHeartbeat('run_1');
+
+    expect(findMany.mock.calls[0]?.[0]).toEqual({
+      where: {
+        runId: 'run_1',
+        OR: [{ status: 'pending' }, { resolvedAt: { gte: expect.any(Date) } }],
+      },
+      orderBy: { requestedAt: 'asc' },
+    });
+    expect(result.map((a) => a.id)).toEqual(['app_1', 'app_2']);
+  });
+
+  it('returns an empty array when nothing is pending or recently resolved', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new ApprovalsService(
+      fakePrisma({ approval: { findMany } }),
+      new RunEventsBus(),
+    );
+    expect(await service.approvalsForHeartbeat('run_1')).toEqual([]);
   });
 });

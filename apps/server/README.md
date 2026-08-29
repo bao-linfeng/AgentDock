@@ -72,7 +72,7 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 POST /runner/register            -> registers/refreshes the runner (token hash only)
 GET  /runner/tasks/claim         -> { claimed, work? }
 POST /runner/runs/:id/events     -> { seq }            (status events drive the state machine)
-POST /runner/runs/:id/heartbeat  -> { cancelRequested, approval? } (cancellation + approval down-channel)
+POST /runner/runs/:id/heartbeat  -> { cancelRequested, approvals[] } (cancellation + approval down-channel)
 POST /runner/runs/:id/approvals  -> requests approval for a shell/push/destructive action (#37)
 POST /runner/runs/:id/complete   -> terminal status + artifacts
 POST /runner/heartbeat           -> idle heartbeat, lists in-flight runs
@@ -96,7 +96,11 @@ Notes:
   `POST /runner/runs/:id/approvals`, which creates a pending `Approval` row
   and transitions the run to `needs_approval`. The runner then polls
   `POST /runner/runs/:id/heartbeat` — the same channel used for cancellation —
-  whose response now also carries `approval: { approvalId, action, status }`
+  whose response now also carries `approvals: [{ approvalId, action, status }]`
+  (a run can have more than one approval outstanding at once — e.g.
+  concurrent ACP shell/tool-call permission requests — and the list also
+  includes approvals resolved in roughly the last hour, so a poller waiting
+  on a specific `approvalId` can observe the transition out of `pending`)
   once a decision (`POST /approvals/:id/resolve` from the Web console) is
   made. Every request/resolution is also appended to `run_events` as a
   `type: 'approval'` event, so it shows up over the existing SSE stream

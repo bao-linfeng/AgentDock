@@ -40,8 +40,17 @@ export interface RunHeartbeatResponseDto {
   runId: string;
   status: string;
   cancelRequested: boolean;
-  /** Set while the run has a pending/resolved approval the runner has not yet consumed. */
-  approval?: PendingApprovalStatusDto;
+  /**
+   * Every approval this run has pending, plus any resolved in roughly the
+   * last hour (docs/tasks.md T8.3, #37). A run can have more than one
+   * approval in flight at once — e.g. concurrent ACP shell/tool-call
+   * permission requests — so callers must match on `approvalId` rather than
+   * assume there is only ever one. Recently-resolved approvals are included
+   * so a poller waiting on a specific `approvalId` can observe its decision
+   * (a `status: 'pending'`-only filter would never show the transition out
+   * of `pending`).
+   */
+  approvals: PendingApprovalStatusDto[];
 }
 
 export interface RunnerHeartbeatResponseDto {

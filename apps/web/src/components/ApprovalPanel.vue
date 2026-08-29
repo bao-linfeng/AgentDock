@@ -8,11 +8,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { approvalsApi } from '../api/approvals';
 import { ApiError } from '../api/client';
-import type { ApprovalDto } from '../types';
+import type { ApprovalDto, RunEventDto } from '../types';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 
-const props = defineProps<{ runId: string | undefined }>();
+const props = defineProps<{ runId: string | undefined; events?: RunEventDto[] }>();
 
 const queryClient = useQueryClient();
 
@@ -20,8 +20,26 @@ const approvalsQuery = useQuery({
   queryKey: ['run-approvals', () => props.runId],
   queryFn: () => approvalsApi.listForRun(props.runId as string),
   enabled: computed(() => !!props.runId),
+  // Fallback poll — the primary refresh trigger is a live `approval` event
+  // in `events` (see watcher below), which fires immediately instead of
+  // waiting up to 5s. Kept as a safety net for callers that don't pass
+  // `events` (e.g. if this panel is reused somewhere without SSE wired up).
   refetchInterval: 5000,
 });
+
+// React to a live `approval` event arriving on the caller's existing SSE
+// subscription (docs/tasks.md T8.3, #37) — Task Detail already subscribes to
+// this run's events for the timeline, so this panel reuses that stream
+// instead of opening a second EventSource connection.
+watch(
+  () => props.events?.length,
+  () => {
+    const hasApprovalEvent = props.events?.some((e) => e.type === 'approval');
+    if (hasApprovalEvent && props.runId) {
+      queryClient.invalidateQueries({ queryKey: ['run-approvals', props.runId] });
+    }
+  },
+);
 
 const pendingApprovals = computed(() =>
   (approvalsQuery.data.value ?? []).filter((a) => a.status === 'pending'),

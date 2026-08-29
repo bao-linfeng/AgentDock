@@ -89,12 +89,10 @@ export class RunnerApprovalGate implements ApprovalGate {
     while (Date.now() < deadline) {
       await this.sleep(this.pollIntervalMs);
       const heartbeat = await this.client.runHeartbeat(runId);
-      if (
-        heartbeat.approval?.approvalId === approval.id &&
-        heartbeat.approval.status !== 'pending'
-      ) {
-        this.onLog(`${action} approval ${heartbeat.approval.status}: ${summary}`);
-        return heartbeat.approval.status === 'approved' ? 'approved' : 'denied';
+      const mine = heartbeat.approvals.find((a) => a.approvalId === approval.id);
+      if (mine && mine.status !== 'pending') {
+        this.onLog(`${action} approval ${mine.status}: ${summary}`);
+        return mine.status === 'approved' ? 'approved' : 'denied';
       }
     }
 
