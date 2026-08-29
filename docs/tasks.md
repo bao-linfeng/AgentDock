@@ -30,14 +30,14 @@
 | | T5.2 变更检测 | ✅ | #1 / PR #10 |
 | | T5.3 验证（测试命令） | ✅ | #1 / PR #10 |
 | | T5.4 提交 / 推送 | ✅ | #27 |
-| M6 GitHub | T6.1 App / Token 接入 | ⬜ | #28 |
+| M6 GitHub | T6.1 App / Token 接入 | ✅ | #28 |
 | | T6.2 Webhook 验签与去重 | ⬜ | #29 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
 | | T6.5 创建 PR | ⬜ | #30 |
 | | T6.6 回调评论 | ⬜ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
-| | T7.2 Projects | 🟡 | #33（仓库绑定待 GitHub App 接入 #28/#29 后开放） |
+| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 触发仍待 #29） |
 | | T7.3 Task List | ✅ | #34 |
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
@@ -474,11 +474,29 @@ RunEvent
 
 ## T6.1 GitHub App / Token 接入
 
-> ⬜ 待办（#28）
+> ✅ 已完成（#28）
+>
+> `apps/server/src/github/github-app.service.ts` 用官方 `octokit`
+> 包（内含 `@octokit/auth-app`）封装 GitHub App 认证：`appOctokit()` 提供
+> App 级（JWT）客户端，`installationOctokit(installationId)` 按需签发并缓存
+> Installation Token（由 `@octokit/auth-app` 自动刷新），供 #30/#31 调用
+> GitHub API（开 PR、回帖）时复用，本任务本身不发起除"校验可访问仓库"外的
+> 业务请求。`GITHUB_WEBHOOK_SECRET` 的读取/校验逻辑已随 Control Server 配置
+> 模块（`apps/server/src/config/env.ts`）落地，供 #29 在验签时使用（本任务
+> 只负责让该配置项可用，签名校验本身仍是 #29 的范围）。
+>
+> **Repository binding：** `RepositoriesController`（`POST/GET/DELETE
+> /projects/:projectId/repositories`）把 GitHub 仓库（`owner`/`repo`）与本地
+> `Project` 关联，写入既有的 `repositories` 表（architecture §7）。绑定前会
+> 用给定的 `installationId` 实际调用 GitHub API 校验该 Installation 确实能访问
+> 目标仓库，避免记错 `installationId` 导致后续 PR/评论调用全部失败才被发现。
+> `GET /github/installations` 列出已安装该 App 的 Installation，供 Web 端
+> 选择。Web 侧 `RepositoryBindingPanel.vue`（issue #33 的一部分）据此渲染
+> 绑定表单，替换掉之前"尚未开放"的占位提示。
 
-- [ ] Webhook secret
-- [ ] Installation auth
-- [ ] Repository binding
+- [x] Webhook secret（配置读取/校验已随 Control Server env 落地；签名验证本身仍是 #29）
+- [x] Installation auth（`GitHubAppService`，基于官方 `octokit` 包）
+- [x] Repository binding（`RepositoriesController` + Web `RepositoryBindingPanel.vue`）
 
 ## T6.2 Webhook Verification
 

@@ -159,6 +159,28 @@ export interface GitHubStatusDto {
   webhookEndpointImplemented: boolean;
 }
 
+export interface GitHubInstallationDto {
+  id: string;
+  account: string;
+}
+
+export interface RepositoryDto {
+  id: string;
+  projectId: string;
+  provider: string;
+  owner: string;
+  repo: string;
+  installationId?: string;
+  createdAt?: string;
+}
+
+export interface BindRepositoryInput {
+  provider?: 'github';
+  owner: string;
+  repo: string;
+  installationId: string;
+}
+
 export interface HealthDto {
   status: string;
   runStatuses: number;
