@@ -24,7 +24,10 @@ async function bootstrap(): Promise<void> {
   // Fail fast on a bad configuration instead of exposing weak tokens.
   const config = loadServerConfig();
 
-  const app = await NestFactory.create(AppModule);
+  // `rawBody: true` keeps `request.rawBody` (Buffer) available alongside the
+  // parsed JSON body — required to verify the GitHub webhook HMAC signature,
+  // which is computed over the exact bytes GitHub sent (T6.2).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({ origin: config.corsOrigins ?? true });
   app.enableShutdownHooks();
   await app.listen(config.port);

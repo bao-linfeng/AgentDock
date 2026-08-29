@@ -7,18 +7,14 @@ export interface GitHubStatusDto {
   appConfigured: boolean;
   /** Where the GitHub App webhook should point once M6 lands. */
   webhookUrl?: string;
-  /** Milestone 6 (#28/#29) wires the webhook route itself. */
-  webhookEndpointImplemented: false;
+  /** `POST /github/webhook` is now wired (#29): verify + dedupe + normalize. */
+  webhookEndpointImplemented: true;
 }
 
 /**
- * GitHubModule placeholder.
- *
- * Only reports whether the integration is configured. The public
- * `POST /github/webhook` route is intentionally **not** registered yet: it must
- * ship together with signature verification and delivery dedupe (#29), because
- * an unauthenticated public endpoint would otherwise be exposed through the
- * tunnel (docs/architecture.md §14).
+ * GitHubModule status reporter — the actual webhook logic lives in
+ * `GitHubWebhookService` (#29). This only reports whether the integration is
+ * configured, so the web console can surface a "not configured yet" hint.
  */
 @Injectable()
 export class GitHubService {
@@ -30,7 +26,7 @@ export class GitHubService {
       webhookSecretConfigured: Boolean(this.config.github.webhookSecret),
       appConfigured: Boolean(this.config.github.appId && this.config.github.privateKey),
       webhookUrl: base ? `${base}/github/webhook` : undefined,
-      webhookEndpointImplemented: false,
+      webhookEndpointImplemented: true,
     };
   }
 }
