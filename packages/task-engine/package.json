@@ -17,6 +17,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@agentdock/protocol": "workspace:*"
+    "@agentdock/protocol": "workspace:*",
+    "@agentdock/shared": "workspace:*"
   }
 }
