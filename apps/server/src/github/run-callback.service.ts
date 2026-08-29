@@ -1,3 +1,4 @@
+import { callbackRouteFrom } from '@agentdock/protocol';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GitHubAppService } from './github-app.service.js';
@@ -72,12 +73,13 @@ export class RunCallbackService {
     if (!run) return;
 
     const { task } = run;
-    if (!task.callbackRepo || task.callbackIssueNumber === null) return;
+    const route = callbackRouteFrom(task);
+    if (!route) return;
 
     const { project } = task;
     const repository = resolveTargetRepository(
       project.repositories,
-      task.callbackRepo,
+      route.repo,
       this.logger,
       `run ${ctx.runId}`,
     );
@@ -88,13 +90,13 @@ export class RunCallbackService {
       await this.githubApp.createIssueComment(repository.installationId, {
         owner: repository.owner,
         repo: repository.repo,
-        issueNumber: task.callbackIssueNumber,
+        issueNumber: route.issueNumber,
         body: buildBody(kind, ctx),
       });
     } catch (error) {
       this.logger.warn(
         `failed to post ${kind} callback comment for run ${ctx.runId} ` +
-          `(${repository.owner}/${repository.repo}#${task.callbackIssueNumber}): ` +
+          `(${repository.owner}/${repository.repo}#${route.issueNumber}): ` +
           `${error instanceof Error ? error.message : String(error)}`,
       );
     }

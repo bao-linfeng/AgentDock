@@ -1,4 +1,4 @@
-import type { TaskIntent } from '@agentdock/protocol';
+import { type CallbackRoute, CallbackRouteSchema, type TaskIntent } from '@agentdock/protocol';
 import { DEFAULT_MENTION_TRIGGER } from '@agentdock/shared';
 
 /** Normalized input produced from a GitHub event, ready to create a task. */
@@ -67,6 +67,21 @@ export function inferIntent(text: string): TaskIntent {
   if (/\b(tests?|unit test|coverage|spec)\b/.test(t)) return 'test';
   if (/\b(implement|add|create|build|feature|support)\b/.test(t)) return 'implement';
   return 'general';
+}
+
+/**
+ * The normalized event's status-callback target as a protocol `CallbackRoute`
+ * (docs/tasks.md T1.2 / T6.6). The flat `callback*` fields are what gets
+ * persisted on the task; this is the structured form for callers that would
+ * otherwise re-assemble it by hand.
+ */
+export function toCallbackRoute(input: AgentTaskCreateInput): CallbackRoute {
+  return CallbackRouteSchema.parse({
+    provider: 'github',
+    repo: input.callbackRepo,
+    issueNumber: input.callbackIssueNumber,
+    isPullRequest: input.callbackIsPullRequest,
+  });
 }
 
 /** A login belonging to a bot (GitHub App / Actions) that must never re-trigger. */

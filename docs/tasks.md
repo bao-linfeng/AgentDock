@@ -12,7 +12,7 @@
 | | T0.2 OMO Slim 兼容性 | ✅ | #17 |
 | | T0.3 OpenTag 源码走读 | ✅ | #18 |
 | M1 Monorepo 与 Protocol | T1.1 初始化 Monorepo | ✅ | 基线提交 |
-| | T1.2 Protocol Schema | 🟡 | 基线提交 |
+| | T1.2 Protocol Schema | ✅ | 基线提交 / #62 |
 | | T1.3 Run 状态机 | ✅ | 基线提交 |
 | M2 Server 基础 | T2.1 NestJS 模块 | ✅ | #19（epic #6） |
 | | T2.2 Prisma Schema | ✅ | #20 |
@@ -170,7 +170,7 @@ docs/research/opentag-runner-notes.md
 
 **标记：** `[参考 OpenTag: core]`
 
-> 🟡 部分完成（基线提交；`CallbackRoute` 与 JSON Schema 导出待补）
+> ✅ 已完成（基线提交 + #62：`CallbackRoute` 与 JSON Schema 导出）
 
 实现 Zod Schema：
 
@@ -180,13 +180,24 @@ docs/research/opentag-runner-notes.md
 - [x] RunArtifact
 - [x] ContextPointer
 - [x] PermissionGrant
-- [ ] CallbackRoute
+- [x] CallbackRoute（#62，`CallbackRouteSchema` + `callbackRouteFrom`）
 
 要求：
 
 - [x] TypeScript 类型从 Schema 推导
-- [ ] 可导出 JSON Schema
+- [x] 可导出 JSON Schema（#62，`packages/protocol/src/json-schema.ts`：
+      `PROTOCOL_SCHEMAS` / `toJsonSchema(name)` / `exportJsonSchemas()`，
+      基于 `zod-to-json-schema@3.24.5`）
 - [x] Server / Runner 共用
+
+> **#62 说明**：回帖目标此前以 `Task.callbackRepo` / `callbackIssueNumber` /
+> `callbackIsPullRequest` 三个裸字段散落在 Prisma 与 server 代码里（#31 引入），
+> 协议层没有统一表达。现在 `CallbackRouteSchema`（`provider` / `repo` /
+> `issueNumber` / `isPullRequest`）是协议级表示：
+> `packages/github-adapter` 的 `toCallbackRoute()` 从归一化结果产出它，
+> `apps/server/src/github/run-callback.service.ts` 用 `callbackRouteFrom(task)`
+> 消费它（存储仍是扁平列，非法值返回 `null` 而不是抛错）。JSON Schema 导出让
+> 协议可以被 TypeScript 之外的工具消费，Zod 仍是唯一事实来源。
 
 ## T1.3 Run Status State Machine
 

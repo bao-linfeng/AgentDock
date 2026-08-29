@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hasMention, inferIntent, normalizeGitHubEvent, stripMention } from './index.js';
+import {
+  hasMention,
+  inferIntent,
+  normalizeGitHubEvent,
+  stripMention,
+  toCallbackRoute,
+} from './index.js';
 
 describe('mention helpers', () => {
   it('detects and strips the trigger while keeping surrounding text', () => {
@@ -150,5 +156,27 @@ describe('normalizeGitHubEvent', () => {
     );
     expect(out?.intent).toBe('implement');
     expect(out?.prompt).toBe('implement search');
+  });
+});
+
+describe('toCallbackRoute', () => {
+  it('converts a normalized event into a protocol CallbackRoute', () => {
+    const out = normalizeGitHubEvent('pull_request', {
+      action: 'opened',
+      repository: { full_name: 'bao/agentdock' },
+      pull_request: {
+        number: 3,
+        title: 'Add pagination',
+        body: '@agent implement pagination',
+        user: { login: 'alice' },
+      },
+    });
+    expect(out).not.toBeNull();
+    expect(toCallbackRoute(out as NonNullable<typeof out>)).toEqual({
+      provider: 'github',
+      repo: 'bao/agentdock',
+      issueNumber: 3,
+      isPullRequest: true,
+    });
   });
 });
