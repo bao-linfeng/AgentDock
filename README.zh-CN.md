@@ -386,10 +386,11 @@ pnpm dev
   - 🟡 Commit(本地提交，随 #24 完成) · ⬜ Push(禁止直接 push 默认分支，见 [#27](https://github.com/bao-linfeng/AgentDock/issues/27))
 - 🟡 **Milestone 6 —— GitHub 集成** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
+  - ✅ GitHub App / Installation 鉴权与仓库↔项目绑定 ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)，`apps/server/src/github`)
   - ⬜ Webhook 验签与去重 · PR 创建 · 回调评论
 - ⬜ **Milestone 7 —— Web Dashboard 与移动端适配** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
-  - 🟡 项目（CRUD 与 Runner 映射已完成；仓库绑定待 GitHub App 接入 #28/#29 后开放）
+  - 🟡 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递仍待 #29）
 - 🟡 **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ⬜ 审批模型(第二阶段)

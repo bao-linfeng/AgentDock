@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { reactive, ref } from 'vue';
+import RepositoryBindingPanel from '../components/RepositoryBindingPanel.vue';
 import { projectsApi } from '../api/projects';
 import { runnersApi } from '../api/runners';
 import { ApiError } from '../api/client';
@@ -8,11 +9,8 @@ import type { CreateProjectInput, ProjectDto, RunnerProjectDto } from '../types'
 
 // Projects (docs/tasks.md T7.2 / issue #33): list, create/edit, runner mapping.
 //
-// NOTE on scope: the Control Server does not yet expose any `/repositories`
-// endpoints (no repositories.controller.ts — see docs/architecture.md §7 for
-// the planned schema). Repository binding is therefore shown as "not yet
-// available" rather than backed by a fabricated API; wiring it up belongs to
-// GitHub App/webhook work (#28/#29).
+// Repository binding is backed by /projects/:projectId/repositories once the
+// GitHub App is configured (see RepositoryBindingPanel.vue, issue #28).
 
 const queryClient = useQueryClient();
 
@@ -215,9 +213,7 @@ runnersQuery.suspense().then(refreshMappings);
           <span v-if="project.buildCommand"> · 构建命令：{{ project.buildCommand }}</span>
         </div>
 
-        <div class="repo-binding muted">
-          仓库绑定：尚未开放（依赖 GitHub App 接入，见 issue #28/#29）。
-        </div>
+        <RepositoryBindingPanel :project-id="project.id" />
 
         <button class="btn mapping-toggle" type="button" @click="toggleExpand(project)">
           {{ expandedProjectId === project.id ? '收起 Runner 映射' : '管理 Runner 映射' }}
