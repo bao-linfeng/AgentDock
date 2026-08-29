@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | M0 技术验证 | T0.1 ACP 冒烟测试 | ✅ | #16 |
 | | T0.2 OMO Slim 兼容性 | ✅ | #17 |
-| | T0.3 OpenTag 源码走读 | ⬜ | #18 |
+| | T0.3 OpenTag 源码走读 | ✅ | #18 |
 | M1 Monorepo 与 Protocol | T1.1 初始化 Monorepo | ✅ | 基线提交 |
 | | T1.2 Protocol Schema | 🟡 | 基线提交 |
 | | T1.3 Run 状态机 | ✅ | 基线提交 |
@@ -123,19 +123,21 @@ compatible_with_limitations
 
 **标记：** `[参考 OpenTag]`
 
-> ⬜ 待办（#18）
+> ✅ 已完成（#18），产出见 [`docs/research/opentag-runner-notes.md`](./research/opentag-runner-notes.md)
 
-> **[TODO — API 名以源码为准]** OpenTag 真实存在（https://github.com/amplifthq/opentag ）且高度对口，但下列符号名（`createAcpAgentExecutor` / `createBuiltInAcpExecutors` / built-in ACP agent definitions）是**假设的具体 API 名**。OpenTag 仍在活跃迭代，动工前必须实际核对当前源码，不能照抄这些名字。
+已直接阅读 `@opentag/runner` 包源码（commit `491dd79f`，tag `v0.11.0`），确认
+`createAcpAgentExecutor` / `createBuiltInAcpExecutors` / built-in ACP agent
+definitions 均为真实存在的导出 API 名（此前的假设与源码一致）。
 
 重点定位：
 
-- [ ] built-in ACP agent definitions
-- [ ] createAcpAgentExecutor
-- [ ] createBuiltInAcpExecutors
-- [ ] workspace cwd conformance
-- [ ] progress
-- [ ] cancellation
-- [ ] readiness
+- [x] built-in ACP agent definitions（`builtin-acp.ts`：codex / claude-code / cursor / opencode / hermes / openclaw 六个）
+- [x] createAcpAgentExecutor（`acp-agent.ts`）
+- [x] createBuiltInAcpExecutors（`builtin-acp.ts`）
+- [x] workspace cwd conformance（`acp-executor.ts` 的 `safeAcpCwd` + worktree 隔离，capability 声明为 `"declared"`）
+- [x] progress（`ExecutorEventSink` + `progressEvents: "audit"`，ACP `session/update` → `executor.progress` 事件）
+- [x] cancellation（ACP 协议级 `session/cancel` notify + 操作系统级进程组强制终止兜底，`openclaw` 的 `supportsCancel: false` 体现"best effort"）
+- [x] readiness（`canRun()`：git 仓库/分支检查 → cwd 校验 → 自定义 preflight → 一次性 ACP `initialize` 握手探测）
 
 产出：
 
