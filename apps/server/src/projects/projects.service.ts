@@ -1,7 +1,9 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { Project } from '@prisma/client';
 import { toIso } from '../common/serialize.js';
 import { PrismaService, isUniqueConstraintError } from '../prisma/prisma.service.js';
+import { parseEvidenceRules } from './evidence-rules.js';
 import type { CreateProjectInput, ProjectDto, UpdateProjectInput } from './projects.dto.js';
 
 /** Run statuses that mean "a runner may still be working on it". */
@@ -22,9 +24,22 @@ export function toProjectDto(project: Project): ProjectDto {
     defaultBranch: project.defaultBranch,
     testCommand: project.testCommand ?? undefined,
     buildCommand: project.buildCommand ?? undefined,
+    evidenceRules: parseEvidenceRules(project.evidenceRulesJson),
     createdAt: toIso(project.createdAt),
     updatedAt: toIso(project.updatedAt),
   };
+}
+
+/**
+ * Map the API-level `evidenceRules` field onto a Prisma JSON column update:
+ * `undefined` leaves it untouched, `null` clears the override.
+ */
+function evidenceRulesData(
+  evidenceRules: CreateProjectInput['evidenceRules'],
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined {
+  if (evidenceRules === undefined) return undefined;
+  if (evidenceRules === null) return Prisma.JsonNull;
+  return evidenceRules as Prisma.InputJsonValue;
 }
 
 @Injectable()
@@ -40,6 +55,7 @@ export class ProjectsService {
           defaultBranch: input.defaultBranch,
           testCommand: input.testCommand ?? null,
           buildCommand: input.buildCommand ?? null,
+          evidenceRulesJson: evidenceRulesData(input.evidenceRules),
         },
       });
       return toProjectDto(project);
@@ -79,6 +95,7 @@ export class ProjectsService {
           // `null` clears the command, `undefined` leaves it untouched.
           testCommand: input.testCommand,
           buildCommand: input.buildCommand,
+          evidenceRulesJson: evidenceRulesData(input.evidenceRules),
         },
       });
       return toProjectDto(project);

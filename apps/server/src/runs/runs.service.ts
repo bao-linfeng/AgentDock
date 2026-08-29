@@ -16,6 +16,7 @@ import { RunEventsBus } from '../events/run-events.bus.js';
 import { PullRequestService } from '../github/pull-request.service.js';
 import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService, isUniqueConstraintError } from '../prisma/prisma.service.js';
+import { resolveEvidenceRules } from '../projects/evidence-rules.js';
 import type {
   AppendRunEventInput,
   ArtifactDto,
@@ -362,7 +363,16 @@ export class RunsService {
       });
 
       const task = await this.prisma.task.findUniqueOrThrow({ where: { id: run.taskId } });
-      const decision = decideCompletion(task.intent as TaskIntent, artifacts);
+      // Evidence rules are per-project (docs/tasks.md T8.4, #60) — a project
+      // may e.g. drop `pull_request` when it has no remote.
+      const project = await this.prisma.project.findUniqueOrThrow({
+        where: { id: task.projectId },
+      });
+      const decision = decideCompletion(
+        task.intent as TaskIntent,
+        artifacts,
+        resolveEvidenceRules(project.evidenceRulesJson),
+      );
       if (decision.status === 'succeeded') {
         status = 'succeeded';
         errorCode = undefined;

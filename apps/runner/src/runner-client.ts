@@ -1,5 +1,10 @@
 import { platform } from 'node:os';
-import type { RunArtifact, TaskIntent, TaskSource } from '@agentdock/protocol';
+import type {
+  EvidenceRulesOverride,
+  RunArtifact,
+  TaskIntent,
+  TaskSource,
+} from '@agentdock/protocol';
 
 /** Response shape for `POST /runner/register` (see apps/server RunnerDto). */
 export interface RegisteredRunner {
@@ -51,6 +56,12 @@ export interface ClaimedWork {
     defaultBranch: string;
     testCommand?: string;
     buildCommand?: string;
+    /**
+     * Per-intent evidence overrides configured on the server-side project
+     * (docs/tasks.md T8.4, #60). Merged onto `DEFAULT_EVIDENCE_RULES` so the
+     * runner's local completion decision matches the Control Server's.
+     */
+    evidenceRules?: EvidenceRulesOverride;
     workspacePath: string;
   };
 }

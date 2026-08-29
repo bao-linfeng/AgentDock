@@ -433,6 +433,7 @@ pnpm dev
   - ✅ 失败可诊断：任务详情页的重试入口与 `errorCode` 展示（[#61](https://github.com/bao-linfeng/AgentDock/issues/61)）
 - ✅ **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
+  - ✅ 证据规则按项目配置 ([#60](https://github.com/bao-linfeng/AgentDock/issues/60))：没有远端仓库（或未配置 GitHub App）的项目可以去掉 `pull_request`，不再让每个 `fix` 任务都失败于 `evidence_incomplete`。配置存在项目上（`projects.evidenceRulesJson`），合并到默认规则之上，Control Server 与 Runner 共用同一份（随 claim 响应下发）。
   - ✅ 审批模型 ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))：shell / push / 破坏性操作三类审批门，`needs_approval` 已贯通 Runner（`apps/runner/src/approval-gate.ts`）与 Web 端（`apps/server/src/approvals`、`apps/web/src/components/ApprovalPanel.vue`）
 - ✅ **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))

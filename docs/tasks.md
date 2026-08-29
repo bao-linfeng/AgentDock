@@ -46,6 +46,7 @@
 | M8 Governance | T8.1 证据引擎 | ✅ | #4 / PR #13 |
 | | T8.2 完成判定 | ✅ | #4 / PR #13 |
 | | T8.3 审批模型 | ✅ | #37 |
+| | T8.4 证据规则按项目配置 | ✅ | #60 |
 | M9 稳定性 | T9.1 Runner 断连 | ✅ | #38（epic #9） |
 | | T9.2 重试 | ✅ | #39 |
 | | T9.3 幂等 | ✅ | #40 |
@@ -861,6 +862,40 @@ required evidence satisfied
 - [x] push approval
 - [x] destructive operation approval（模型/API 已就位，暂无内部调用方触发）
 - [x] `needs_approval` 运行状态贯通 UI + Runner
+
+## T8.4 证据规则按项目配置
+
+> ✅ 已完成（#60，`apps/server/src/projects/evidence-rules.ts` +
+> `projects.evidenceRulesJson`，迁移 `20260830120000_t8_4_project_evidence_rules`）
+>
+> 落地 requirements.md §9 的 OPEN QUESTION。此前 `withProjectRules` 只被
+> governance 自己的单测使用，`Project` 表与 `runner.config.json` 都没有对应字段，
+> 服务端与 Runner 调 `decideCompletion` 都走 `DEFAULT_EVIDENCE_RULES`——项目没有
+> 远端仓库 / 未装 GitHub App / `push.enabled` 保持默认 `false` 时，
+> `fix` 与 `implement` 任务即使代码改对、测试通过也永远是
+> `failed(evidence_incomplete)`。
+>
+> 现在：
+> - 协议层新增 `EvidenceKindSchema` / `EvidenceRulesOverrideSchema`
+>   （`@agentdock/protocol`），governance 的 `EvidenceKind` 改为从协议包复用，
+>   避免两处枚举漂移。
+> - `Project.evidenceRulesJson` 存 per-intent 覆盖（`null` = 用默认值），
+>   Project CRUD 通过 `evidenceRules` 字段读写并做 schema 校验。
+> - `RunsService.complete` 在开 PR 后重新判定时使用项目规则；
+>   `parseEvidenceRules` 对非法 JSON 静默回退到默认值，而不是让 run 判定报错。
+> - Runner Gateway 的 claim 响应下发 `project.evidenceRules`，
+>   `apps/runner/src/claim-execute-loop.ts` 用 `withProjectRules` 合并后判定，
+>   保证 Runner 的本地判定与服务端一致。
+> - Web 项目表单新增「自定义证据规则」勾选与 per-intent 复选框
+>   （shadcn-vue `Checkbox`）；只有与默认不同的 intent 才会写入覆盖，
+>   逻辑在 `apps/web/src/lib/evidence-rules.ts`（含单测）。
+
+- [x] `Project` 证据规则字段 + 迁移
+- [x] Project CRUD 读写与校验
+- [x] 服务端完成判定使用项目规则
+- [x] Runner 侧使用同一份规则（随 claim 下发）
+- [x] Web 表单可配置
+- [x] 单测：无远端项目去掉 `pull_request` 后 `fix` 可 `succeeded`
 
 ---
 

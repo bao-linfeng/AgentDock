@@ -1,3 +1,4 @@
+import { type EvidenceRulesOverride, EvidenceRulesOverrideSchema } from '@agentdock/protocol';
 import { z } from 'zod';
 
 /** A shell command configured per project (test / build). `null` clears it. */
@@ -19,6 +20,12 @@ export const CreateProjectSchema = z.object({
   defaultBranch: z.string().trim().min(1).max(200).default('main'),
   testCommand: commandField,
   buildCommand: commandField,
+  /**
+   * Per-intent evidence-rule overrides (docs/tasks.md T8.4, #60). `null` clears
+   * the override and falls back to `DEFAULT_EVIDENCE_RULES`; `undefined` leaves
+   * it untouched on update.
+   */
+  evidenceRules: EvidenceRulesOverrideSchema.nullish(),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>;
 
@@ -35,6 +42,8 @@ export interface ProjectDto {
   defaultBranch: string;
   testCommand?: string;
   buildCommand?: string;
+  /** Per-intent evidence overrides; absent means "use the defaults" (#60). */
+  evidenceRules?: EvidenceRulesOverride;
   createdAt?: string;
   updatedAt?: string;
 }

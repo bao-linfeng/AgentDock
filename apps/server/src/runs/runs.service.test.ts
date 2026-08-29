@@ -393,7 +393,14 @@ describe('RunsService.complete', () => {
       },
       task: {
         update: vi.fn().mockResolvedValue({}),
-        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'task_1', intent: 'fix' }),
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ id: 'task_1', intent: 'fix', projectId: 'proj_1' }),
+      },
+      project: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ id: 'proj_1', defaultBranch: 'main', evidenceRulesJson: null }),
       },
       artifact: { create: artifactCreate },
       runEvent: {
@@ -493,6 +500,44 @@ describe('RunsService.complete', () => {
     expect(callbacks.post).toHaveBeenCalledWith('completed', { runId: 'run_1' });
 
     expect(dto).toBeDefined();
+  });
+
+  it("applies the project's evidence-rule override when re-deciding after a PR", async () => {
+    // fix normally needs git_changes + test_result + commit + pull_request; this
+    // project drops test_result, so the run succeeds without a test artifact
+    // (docs/tasks.md T8.4, #60).
+    const { prisma, taskRunUpdate } = completePrisma({
+      project: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          id: 'proj_1',
+          defaultBranch: 'main',
+          evidenceRulesJson: { fix: ['git_changes', 'commit', 'pull_request'] },
+        }),
+      },
+    });
+    const openForRun = vi.fn().mockResolvedValue({
+      number: 7,
+      url: 'https://github.com/acme/widgets/pull/7',
+      title: 'Fix payment callback',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+    const svc = service(prisma, fakePullRequests(openForRun));
+
+    await svc.complete('run_1', {
+      status: 'failed',
+      errorCode: 'evidence_incomplete',
+      errorMessage: 'missing required evidence: pull_request',
+      branch: 'agent/task_1-fix',
+      artifacts: [
+        { type: 'diff', title: '1 file changed' },
+        { type: 'commit', title: 'agentdock: task_1', metadata: { pushed: true } },
+      ],
+    });
+
+    const runUpdateData = taskRunUpdate.mock.calls[0][0].data;
+    expect(runUpdateData.errorCode).toBeNull();
+    expect(runUpdateData.errorMessage).toBeNull();
   });
 
   it('keeps the run failed when a PR cannot be opened', async () => {

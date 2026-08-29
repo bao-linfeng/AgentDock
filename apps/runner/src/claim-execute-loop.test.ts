@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentExecutor, ExecutorEventSink, ExecutorRunInput } from '@agentdock/agent-runtime';
+import type { EvidenceRulesOverride } from '@agentdock/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClaimExecuteLoop } from './claim-execute-loop.js';
 import type {
@@ -41,7 +42,11 @@ async function makeBareRemote(): Promise<string> {
 
 function claimedWork(
   repo: string,
-  overrides: Partial<{ testCommand: string; intent: 'fix' | 'general' }> = {},
+  overrides: Partial<{
+    testCommand: string;
+    intent: 'fix' | 'general';
+    evidenceRules: EvidenceRulesOverride;
+  }> = {},
 ) {
   return {
     claimed: true as const,
@@ -65,6 +70,7 @@ function claimedWork(
         workspaceKey: 'demo',
         defaultBranch: 'main',
         testCommand: overrides.testCommand,
+        evidenceRules: overrides.evidenceRules,
         workspacePath: repo,
       },
     },
@@ -197,6 +203,24 @@ describe('ClaimExecuteLoop.tick', () => {
     expect(completion?.status).toBe('failed');
     expect(completion?.errorCode).toBe('evidence_incomplete');
     expect(completion?.errorMessage).toContain('pull_request');
+  });
+
+  it("honors the project's evidence-rule override (remote-less project drops pull_request)", async () => {
+    // docs/tasks.md T8.4 / #60: without the override this exact run fails with
+    // evidence_incomplete (see the test above).
+    const client = fakeClient([
+      claimedWork(repo, { evidenceRules: { fix: ['git_changes', 'commit'] } }),
+    ]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const loop = new ClaimExecuteLoop({ client, pollIntervalMs: 1000, executor });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
   });
 
   it('completes as failed when the test command fails', async () => {

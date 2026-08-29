@@ -1,4 +1,10 @@
-import type { ApprovalAction, ApprovalStatus, TaskIntent, TaskSource } from '@agentdock/protocol';
+import type {
+  ApprovalAction,
+  ApprovalStatus,
+  EvidenceRulesOverride,
+  TaskIntent,
+  TaskSource,
+} from '@agentdock/protocol';
 import type { RunDto } from '../runs/runs.dto.js';
 
 /** Everything a runner needs to execute one run, resolved server-side. */
@@ -18,6 +24,12 @@ export interface ClaimedWorkDto {
     defaultBranch: string;
     testCommand?: string;
     buildCommand?: string;
+    /**
+     * Per-intent evidence overrides configured on the project (#60). Absent
+     * means "use `DEFAULT_EVIDENCE_RULES`" — the runner merges these onto the
+     * defaults so its local completion decision matches the server's.
+     */
+    evidenceRules?: EvidenceRulesOverride;
     /** Runner-local checkout path from `runner_projects`. */
     workspacePath: string;
   };

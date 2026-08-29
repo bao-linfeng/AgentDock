@@ -314,7 +314,14 @@ agent/task-123-fix-payment-callback
 - [ ] Push 成功
 - [ ] PR 已创建
 
-> **[OPEN QUESTION]** 上述 evidence 目前为硬编码五项。边界情况：项目无远端仓库、或用户只需本地验证时，"Push 成功 / PR 已创建"无法满足。建议将 evidence 规则做成 per-project 可配置，而非固定五项。
+> **[已实现 2026-08-30, #60]** 上述五项是**默认值**，不再硬编码：证据规则现在
+> 可按项目配置（`projects.evidenceRulesJson`，schema 见
+> `EvidenceRulesOverrideSchema`）。项目无远端仓库、或用户只需本地验证时，可以
+> 去掉 `pull_request`（乃至 `test_result`），避免这类任务永远失败于
+> `evidence_incomplete`。覆盖值会合并到 `@agentdock/governance` 的
+> `DEFAULT_EVIDENCE_RULES` 之上（`withProjectRules`），Control Server 与 Runner
+> 使用同一份规则（规则随 claim 响应下发），Web 项目表单可直接勾选。详见
+> docs/tasks.md T8.4。
 
 ### Review Task 最低完成条件
 

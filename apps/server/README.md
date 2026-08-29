@@ -40,9 +40,9 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 | Method / path                             | Purpose                                              |
 | ----------------------------------------- | ---------------------------------------------------- |
 | `GET /health`                             | Liveness probe (public)                              |
-| `POST /projects`                          | Create a project (name, workspaceKey, defaultBranch, testCommand, buildCommand) |
+| `POST /projects`                          | Create a project (name, workspaceKey, defaultBranch, testCommand, buildCommand, evidenceRules) |
 | `GET /projects` · `GET /projects/:id`     | List / read projects                                 |
-| `PATCH /projects/:id`                     | Update; `null` clears a command                      |
+| `PATCH /projects/:id`                     | Update; `null` clears a command or the evidence-rule override |
 | `DELETE /projects/:id`                    | Delete — refused (409) while runs are in flight      |
 | `POST /tasks`                             | Create a task and queue its first run                |
 | `GET /tasks?projectId=&status=&source=`   | Filtered task list                                   |

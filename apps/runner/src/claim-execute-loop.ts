@@ -6,7 +6,7 @@ import {
   agentBranchName,
   runVerification,
 } from '@agentdock/git-runtime';
-import { decideCompletion } from '@agentdock/governance';
+import { decideCompletion, withProjectRules } from '@agentdock/governance';
 import type { RunArtifact, RunStatus } from '@agentdock/protocol';
 import type { PushConfig } from './config.js';
 import type { ClaimedWork, RunnerClient } from './runner-client.js';
@@ -317,7 +317,13 @@ export class ClaimExecuteLoop {
         }
       }
 
-      const decision = decideCompletion(work.task.intent, artifacts);
+      const decision = decideCompletion(
+        work.task.intent,
+        artifacts,
+        // Per-project evidence rules come down with the claim (#60); fall back
+        // to the built-in defaults when the project has no override.
+        withProjectRules(work.project.evidenceRules ?? {}),
+      );
       if (decision.status === 'failed') {
         await this.finishFailed(
           runId,

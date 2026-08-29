@@ -5,6 +5,7 @@ import type { ApprovalDto, RequestApprovalInput } from '../approvals/approvals.d
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { parseEvidenceRules } from '../projects/evidence-rules.js';
 import { RunnersService } from '../runners/runners.service.js';
 import type {
   AppendRunEventInput,
@@ -128,6 +129,7 @@ export class RunnerGatewayService {
             defaultBranch: run.task.project.defaultBranch,
             testCommand: run.task.project.testCommand ?? undefined,
             buildCommand: run.task.project.buildCommand ?? undefined,
+            evidenceRules: parseEvidenceRules(run.task.project.evidenceRulesJson),
             workspacePath,
           },
         },
