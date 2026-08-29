@@ -16,6 +16,7 @@
   "dependencies": {
     "@agentdock/agent-runtime": "workspace:*",
     "@agentdock/git-runtime": "workspace:*",
+    "@agentdock/governance": "workspace:*",
     "@agentdock/protocol": "workspace:*",
     "@agentdock/shared": "workspace:*",
     "zod": "^3.24.1"

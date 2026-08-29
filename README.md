@@ -15,14 +15,14 @@
   <a href="#-architecture">Architecture</a> •
   <a href="#-project-structure">Structure</a> •
   <a href="#-tech-stack">Tech Stack</a> •
-  <a href="#-getting-started-planned">Getting Started</a> •
+  <a href="#-getting-started">Getting Started</a> •
   <a href="#-roadmap">Roadmap</a>
 </p>
 
 ---
 
 > [!NOTE]
-> **Project Status: early development — Control Server up, MVP loop in progress.**
+> **Project Status: early development — Control Server up, Runner claim→execute loop wired.**
 >
 > The monorepo scaffolding is in place and several foundation packages are
 > implemented and unit-tested: protocol schemas & run-status state machine,
@@ -31,12 +31,17 @@
 > now runs** (projects, tasks, runs, run events, Runner Gateway with a
 > cancellation channel — see [`apps/server/README.md`](./apps/server/README.md)).
 > The **OpenCode ACP executor is implemented and unit-tested**
-> (`packages/agent-runtime`, via `@agentclientprotocol/sdk`), but it is not yet
-> wired into a Runner claim→execute main loop. The **Web console is now built**
+> (`packages/agent-runtime`, via `@agentclientprotocol/sdk`), and the **Local
+> Runner now drives the full claim → worktree → execute → verify → commit →
+> complete loop** end to end (`apps/runner/src/claim-execute-loop.ts`), honoring
+> cancellation via the per-run heartbeat. Pushing the commit and opening a Pull
+> Request are not implemented yet (tracked separately, see
+> [Milestone 5](#-roadmap) / [#27](https://github.com/bao-linfeng/AgentDock/issues/27)) —
+> without a GitHub App/token integration there is nowhere to push to, so a
+> `fix`/`implement` run currently completes as `failed` on the evidence check
+> until that lands. The **Web console is now built**
 > (Dashboard, Task List, Task Detail with live SSE updates, Projects — see
-> [Milestone 7](#-roadmap)); the Runner loop is still **not built yet** — step 3
-> in [Getting Started](#-getting-started) describes the *planned* experience.
-> Progress and the issue mapping are tracked in
+> [Milestone 7](#-roadmap)). Progress and the issue mapping are tracked in
 > [`docs/tasks.md`](./docs/tasks.md) and the
 > [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues).
 
@@ -257,10 +262,12 @@ AgentDock/
 ## 🚀 Getting Started
 
 > [!IMPORTANT]
-> The **Control Server runs today** (Milestone 2), and the **Web console is now
-> built** (Milestone 7 — see step 4 below). The Local Runner claim→execute loop
-> is still being built, so step 3 below describes the intended developer
-> experience rather than working commands. See [Roadmap](#-roadmap).
+> The **Control Server runs today** (Milestone 2), the **Local Runner now runs
+> the full claim→execute loop** (Milestone 3 — see step 3 below), and the
+> **Web console is now built** (Milestone 7 — see step 4 below). Pushing/PR
+> creation after a run's commit is not implemented yet (#27/#30), so step 3
+> reflects what actually runs today, short of a pushed branch or opened PR.
+> See [Roadmap](#-roadmap).
 
 ### Prerequisites
 
@@ -308,7 +315,7 @@ The full endpoint list (Web API + Runner Gateway) lives in
 [`apps/server/README.md`](./apps/server/README.md). Every route except
 `GET /health` requires a token, and the runner and web tokens must differ.
 
-### 3. Configure & start the Local Runner (planned)
+### 3. Configure & start the Local Runner
 
 ```bash
 cd apps/runner
@@ -332,6 +339,14 @@ cp runner.config.example.json runner.config.json
 ```bash
 pnpm start
 ```
+
+The runner registers, heartbeats, and starts polling
+`GET /runner/tasks/claim` every 5s; once a task is queued for a mapped
+project it creates an isolated worktree, runs OpenCode via ACP, verifies
+(optional test command), commits locally, and reports the outcome back.
+Pushing the branch / opening a PR is not implemented yet (#27/#30), so
+`fix`/`implement` tasks currently finish as `failed` on the evidence check
+until that lands — `general` tasks (no PR requirement) complete normally.
 
 ### 4. Start the Web console
 
@@ -384,13 +399,13 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - 🟡 **Milestone 3 — Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
   - ✅ Runner config safety & secret handling ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ Task-claim engine core ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
-  - ✅ Runner-side registration/heartbeat loop (#23) · ⬜ claim→execute loop (#24)
+  - ✅ Runner-side registration/heartbeat loop (#23) · ✅ claim→execute loop (#24)
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
   - ✅ OpenCode ACP executor · ACP → RunEvent bridge (via `@agentclientprotocol/sdk`; see `packages/agent-runtime`)
 - 🟡 **Milestone 5 — Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree manager, change detection, verification ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
-  - ⬜ Commit / push (no direct push to default branch)
+  - 🟡 Commit (local, via #24) · ⬜ Push / no direct push to default branch ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
 - 🟡 **Milestone 6 — GitHub integration** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ⬜ Webhook verification & dedupe · PR creation · callback comments

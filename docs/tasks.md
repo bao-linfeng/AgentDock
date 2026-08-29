@@ -22,7 +22,7 @@
 | | T3.2 注册与心跳 | ✅ | #23（服务端接口 #22；Runner 侧循环见 apps/runner/src/heartbeat-loop.ts） |
 | | T3.3 项目映射（根包含校验） | 🟡 | #5（部分）/ #24（服务端映射接口已完成） |
 | | T3.4 任务领取核心 | ✅ | #3 / PR #12 |
-| | T3.4b Runner 领取→执行主循环 | ⬜ | #24 |
+| | T3.4b Runner 领取→执行主循环 | ✅ | #24 |
 | M4 Agent Runtime | T4.1 AgentExecutor 接口 | ✅ | 基线提交 |
 | | T4.2 OpenCodeExecutor | ✅ | #25（epic #7） |
 | | T4.3 事件桥接 | ✅ | #26 |
@@ -307,12 +307,37 @@ local workspace path
 
 **标记：** `[参考 OpenTag: dispatcher]`
 
-> ✅ 领取核心已完成（#3 / PR #12，`packages/task-engine`；服务端 DB 版原子领取见 #22）；Runner 侧主循环见 #24
+> ✅ 领取核心已完成（#3 / PR #12，`packages/task-engine`；服务端 DB 版原子领取见 #22）；Runner 侧主循环见 #24（已完成）
 
-- [ ] Runner 主动 claim（需 Runner 主循环 #24）
+- [x] Runner 主动 claim（见 T3.4b / #24）
 - [x] 单 Runner MVP
 - [x] 每次只执行一个任务（服务端在 claim 时强制）
 - [x] claim 后原子更新 assigned（引擎 + 服务端条件 UPDATE 均已实现）
+
+## T3.4b Runner 领取→执行主循环
+
+> ✅ 已完成（#24，`apps/runner/src/claim-execute-loop.ts`）
+>
+> `ClaimExecuteLoop` 按固定间隔（`CLAIM_POLL_INTERVAL_MS`，5s）轮询
+> `GET /runner/tasks/claim`；领取到任务后依次执行：
+> `running` → `WorktreeManager.create`（git-runtime，#1）→ `AgentExecutor.run`
+> （agent-runtime `OpenCodeExecutor`，#7）→ `verifying`（变更检测 +
+> 可选测试命令 `runVerification`）→ `publishing`（`WorktreeManager.commit`
+> 本地提交）→ 用 `@agentdock/governance` 的 `decideCompletion` 按证据规则
+> 判定终态 → `POST /runner/runs/:id/complete`。
+>
+> 取消：后台 `runHeartbeat`（`RUN_HEARTBEAT_INTERVAL_MS`，10s）持续轮询
+> `POST /runner/runs/:id/heartbeat` 的 `cancelRequested`；主流程在关键阶段之间
+> 检查该标志，一旦发现取消请求，会调用 `executor.cancel()` 并以 `cancelled`
+> 终态收尾，而不是直接杀进程。
+>
+> **[范围边界]** 本任务只做本地 `git commit`（满足 governance 的 `commit`
+> 证据），**不做** `git push` 与 PR 创建——这两项仍是 #27（T5.4）与 #30（T6.5）
+> 的范围，因为仓库目前还没有 GitHub App/Token 接入（#28）可用作 push 目标。
+> 因此对 `fix`/`implement` 意图的任务，若最终没有额外产出 `pull_request`
+> artifact，`decideCompletion` 会按证据规则判定为 `failed`
+> （`errorCode: 'evidence_incomplete'`），这是预期行为，等 #27/#30 落地后
+> 会自然满足。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
 
 ---
 
@@ -417,10 +442,15 @@ RunEvent
 
 ## T5.4 Commit / Push
 
-> ⬜ 待办（#27）
+> 🟡 部分完成（#27）
+>
+> `WorktreeManager.commit()` 已随 #24 落地（`packages/git-runtime/src/index.ts`）：
+> 对 worktree 内的变更 `git add -A` + `git commit`，返回新提交的 SHA，供 Runner
+> 主循环产出 `commit` RunArtifact。**推送到 origin 与创建 PR 仍待办**——
+> 需要 #28（GitHub App/Token 接入）提供推送目标后才能实现。
 
-- [ ] commit
-- [ ] configurable commit template
+- [x] commit（本地提交，`WorktreeManager.commit`；#24）
+- [ ] configurable commit template（Runner 侧已支持 `commitMessageTemplate` 选项，默认模板见 #24；项目级可配置模板仍待办）
 - [ ] push new branch
 - [ ] 禁止 direct push default branch
 

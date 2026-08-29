@@ -173,6 +173,27 @@ export class WorktreeManager {
     };
   }
 
+  /**
+   * Stage all changes in the worktree and commit them.
+   *
+   * Local commit only — pushing to `origin` and opening a Pull Request are
+   * out of scope here and tracked separately (docs/tasks.md T5.4, #27):
+   * this repo has no GitHub App / token wiring yet (#28), so a push target
+   * doesn't exist. Returns `null` when there is nothing to commit.
+   */
+  async commit(handle: WorktreeHandle, message: string): Promise<string | null> {
+    this.assertContained(handle.worktreePath);
+
+    const changes = await this.detectChanges(handle);
+    if (!changes.hasChanges) return null;
+
+    await git(handle.worktreePath, ['add', '-A']);
+    // `--allow-empty` is intentionally omitted: `hasChanges` already guards this.
+    await git(handle.worktreePath, ['commit', '--quiet', '-m', message]);
+    const sha = (await git(handle.worktreePath, ['rev-parse', 'HEAD'])).trim();
+    return sha;
+  }
+
   /** Remove the worktree and prune its administrative entry. */
   async cleanup(handle: WorktreeHandle): Promise<void> {
     this.assertContained(handle.worktreePath);
