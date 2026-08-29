@@ -430,6 +430,7 @@ pnpm dev
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
   - ✅ 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递已随 #29 打通；已迁移为 Tailwind v4 + shadcn-vue）
   - ✅ 控制台内派发任务（[#59](https://github.com/bao-linfeng/AgentDock/issues/59)，`TasksView.vue` 的「新建任务」表单）
+  - ✅ 失败可诊断：任务详情页的重试入口与 `errorCode` 展示（[#61](https://github.com/bao-linfeng/AgentDock/issues/61)）
 - ✅ **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ✅ 审批模型 ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))：shell / push / 破坏性操作三类审批门，`needs_approval` 已贯通 Runner（`apps/runner/src/approval-gate.ts`）与 Web 端（`apps/server/src/approvals`、`apps/web/src/components/ApprovalPanel.vue`）

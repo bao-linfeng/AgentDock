@@ -42,6 +42,7 @@
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
 | | T7.6 新建任务表单（Web 派发） | ✅ | #59 |
+| | T7.7 失败重试入口与 errorCode 展示 | ✅ | #61 |
 | M8 Governance | T8.1 证据引擎 | ✅ | #4 / PR #13 |
 | | T8.2 完成判定 | ✅ | #4 / PR #13 |
 | | T8.3 审批模型 | ✅ | #37 |
@@ -716,6 +717,22 @@ Tabs / Sections：
 实时更新通过 `GET /events/runs/:id` SSE（`useRunEvents.ts`，`?access_token=` 鉴权 +
 `afterSeq` 断线重连），已用真实 Control Server + MySQL 做端到端联调验证。
 
+## T7.7 失败诊断：重试入口与 errorCode 展示
+
+> ✅ 已完成（#61，`apps/web/src/views/TaskDetailView.vue` + `apps/web/src/api/runs.ts`）
+>
+> 补齐 requirements.md US-05 的两项：服务端 `POST /runs/:id/retry`（T9.2 / #39）
+> 此前没有任何前端入口，`errorCode` 也没有展示（只显示 `errorMessage`）。现在：
+> 最新 Run 为 `failed` 时，详情页顶部操作区出现「重试」按钮，成功后刷新任务与
+> Run 列表（新 Run 为 `queued`，旧 Run 事件历史保留）；服务端返回 409
+> （非 failed / 同任务仍有活动 Run）时把消息原样显示出来。概览分区新增「错误码」
+> 一行。顶部操作区的按钮一并迁移为 shadcn-vue `Button`（含 `as="a"` 的打开 PR）。
+
+- [x] `runsApi.retry`
+- [x] 失败时显示重试按钮（44px 触控目标）
+- [x] 展示 `errorCode`
+- [x] 409 等错误可读提示
+
 ## T7.5 Mobile UX
 
 **标记：** `[参考 Orca]`
@@ -875,6 +892,7 @@ required evidence satisfied
 - [x] failed run retry
 - [x] 新 Run ID
 - [x] 保留上一轮 Event
+- [x] Web 端重试入口（T7.7 / #61）
 
 ## T9.3 Idempotency
 
