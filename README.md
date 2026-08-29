@@ -446,9 +446,9 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ GitHub App/Installation auth & repository↔project binding ([#28](https://github.com/bao-linfeng/AgentDock/issues/28), `apps/server/src/github`)
   - ✅ Webhook signature verification & delivery dedupe ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
   - ✅ PR creation ([#30](https://github.com/bao-linfeng/AgentDock/issues/30), `apps/server/src/github/pull-request.service.ts`) · ✅ callback comments ([#31](https://github.com/bao-linfeng/AgentDock/issues/31), `apps/server/src/github/run-callback.service.ts`)
-- ⬜ **Milestone 7 — Web Dashboard & mobile UX** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
+- ✅ **Milestone 7 — Web Dashboard & mobile UX** *(done)* (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
-  - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29)
+  - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29; Tailwind v4 + shadcn-vue UI)
 - 🟡 **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ⬜ Approval model (phase 2)
