@@ -22,7 +22,7 @@
 ---
 
 > [!NOTE]
-> **项目状态:早期开发中 —— Control Server 已可运行，Runner 领取→执行主循环已打通。**
+> **项目状态:早期开发中 —— Control Server 已可运行，Runner 领取→执行主循环已打通，PR 创建已自动化。**
 >
 > Monorepo 脚手架已就绪，多个基础包已实现并有单元测试:protocol Schema 与
 > Run 状态机、Git Worktree 运行时、GitHub 事件归一化、任务队列引擎、证据治理，
@@ -37,13 +37,17 @@
 > [#27](https://github.com/bao-linfeng/AgentDock/issues/27))，复用项目本地
 > 已有的 git 远程与凭据(等同于人工 `git push`)，按项目在
 > `runner.config.json` 的 `push.enabled` 开关中启用，且默认拒绝直推
-> base/受保护分支。基于该推送分支创建 Pull Request 尚未实现(另行跟踪，见
+> base/受保护分支。**基于该推送分支自动创建 Pull Request 现已实现**(见
 > [里程碑 6](#-里程碑与路线图) /
-> [#30](https://github.com/bao-linfeng/AgentDock/issues/30))——仍需要接入
-> GitHub App/Token([#28](https://github.com/bao-linfeng/AgentDock/issues/28))
-> 才能调用 GitHub API,因此 `fix`/`implement` 类型的任务目前仍会因缺少
-> `pull_request` 证据在证据校验环节判定为 `failed`,待 #30 落地后即可自然
-> 满足。**Web 控制台已构建完成**(仪表盘、任务列表、任务详情含 SSE 实时更新、
+> [#30](https://github.com/bao-linfeng/AgentDock/issues/30)，
+> `apps/server/src/github/pull-request.service.ts`):当某个 Run 已推送
+> Commit 但仍缺 `pull_request` 证据时，持有 GitHub App 凭据的 Control Server
+> (凭据来自 [#28](https://github.com/bao-linfeng/AgentDock/issues/28) 的仓库
+> 绑定)会自动开 PR 并重新判定完成状态——因此绑定了恰好一个仓库的项目，其
+> `fix`/`implement` 类型任务现在可以在证据校验环节判定为 `succeeded`。把结果
+> 回评到原 GitHub 讨论线程仍待实现
+> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))。**Web 控制台已
+> 构建完成**(仪表盘、任务列表、任务详情含 SSE 实时更新、
 > 项目管理,见
 > [路线图](#-里程碑与路线图) 里程碑 7)。进度与
 > issue 对照见
@@ -254,9 +258,10 @@ AgentDock/
 > [!IMPORTANT]
 > **Control Server 现在已经可以跑起来**(里程碑 2)，**Local Runner 现已支持
 > 完整的领取→执行→推送主循环**(里程碑 3/5,见下文第 3 步)，**Web 控制台已
-> 构建完成**(里程碑 7，见下文第 4 步)。推送后创建 PR 尚未实现(#30),因此
-> 第 3 步反映的是当前实际可运行的效果 —— 按项目配置可选地推送分支，但不会
-> 自动创建 PR。见[路线图](#-里程碑与路线图)。
+> 构建完成**(里程碑 7，见下文第 4 步)。**推送后自动创建 PR 现已实现**(#30),
+> 因此第 3 步反映的是当前实际可运行的端到端效果 —— 按项目配置推送分支后，
+> Control Server 会自动开 PR，Run 随后完成为 `succeeded`。见
+> [路线图](#-里程碑与路线图)。
 
 ### 前置依赖
 
@@ -338,9 +343,11 @@ Runner 启动后会先注册、开始心跳，随后每 5 秒轮询一次
 `GET /runner/tasks/claim`；一旦目标项目有排队任务，就会创建独立工作树、
 通过 ACP 运行 OpenCode、执行验证(可选测试命令)、本地提交，并在该项目开启了
 `push.enabled` 时把 agent 分支推送到已配置的远程(复用本机已有的 git 凭据；
-默认拒绝直推 base/受保护分支)。基于该分支创建 PR 尚未实现(#30),所以
-`fix`/`implement` 类型的任务目前
-会在证据校验环节判定为失败;不要求 PR 证据的 `general` 类型任务可以正常完成。
+默认拒绝直推 base/受保护分支)。Control Server 一旦看到已推送的 Commit，会
+用仓库绑定时授权的 GitHub App 凭据自动创建 PR(#30;要求目标项目恰好绑定
+一个 GitHub 仓库),因此 `fix`/`implement` 类型的任务现在可以端到端完成为
+`succeeded`;不要求 PR 证据的 `general` 类型任务始终可以正常完成。把执行
+结果回评到 GitHub 讨论线程仍待实现(#31)。
 
 ### 4. 启动 Web 控制台
 
@@ -402,7 +409,7 @@ pnpm dev
   - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ✅ GitHub App / Installation 鉴权与仓库↔项目绑定 ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)，`apps/server/src/github`)
   - ✅ Webhook 验签与投递去重 ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
-  - ⬜ PR 创建 · 回调评论
+  - ✅ PR 创建 ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)，`apps/server/src/github/pull-request.service.ts`) · ⬜ 回调评论 ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))
 - ⬜ **Milestone 7 —— Web Dashboard 与移动端适配** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
   - ✅ 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递已随 #29 打通）

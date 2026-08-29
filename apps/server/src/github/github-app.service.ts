@@ -16,6 +16,9 @@ import type { ServerConfig } from '../config/env.js';
  * auth (JWT/installation tokens) and webhook HMAC verification use unrelated
  * secrets (`privateKey` vs `webhookSecret`) even though both come from the
  * same GitHub App.
+ *
+ * `createPullRequest` (#30) is the one method here that performs a
+ * write/mutating GitHub API call rather than just producing a client.
  */
 @Injectable()
 export class GitHubAppService {
@@ -89,5 +92,61 @@ export class GitHubAppService {
       }
     }
     return repos;
+  }
+
+  /**
+   * Open a Pull Request against `owner/repo` (docs/tasks.md T6.5, #30), using
+   * the given installation's access token. If a PR already exists for
+   * `head` -> `base` (e.g. a retried run pushing to the same branch again),
+   * GitHub's "already exists" error (422) is treated as success and the
+   * existing PR is returned instead, keeping this call idempotent.
+   */
+  async createPullRequest(
+    installationId: string,
+    params: {
+      owner: string;
+      repo: string;
+      title: string;
+      body: string;
+      base: string;
+      head: string;
+    },
+  ): Promise<{ number: number; url: string; title: string }> {
+    const octokit = await this.installationOctokit(installationId);
+    try {
+      const response = await octokit.rest.pulls.create({
+        owner: params.owner,
+        repo: params.repo,
+        title: params.title,
+        body: params.body,
+        base: params.base,
+        head: params.head,
+      });
+      return {
+        number: response.data.number,
+        url: response.data.html_url,
+        title: response.data.title,
+      };
+    } catch (error) {
+      const existing = await this.findExistingPullRequest(octokit, params);
+      if (existing) return existing;
+      throw error;
+    }
+  }
+
+  /** Best-effort lookup of an already-open PR for the same head -> base pair. */
+  private async findExistingPullRequest(
+    octokit: Octokit,
+    params: { owner: string; repo: string; base: string; head: string },
+  ): Promise<{ number: number; url: string; title: string } | null> {
+    const response = await octokit.rest.pulls.list({
+      owner: params.owner,
+      repo: params.repo,
+      base: params.base,
+      head: `${params.owner}:${params.head}`,
+      state: 'open',
+    });
+    const [pr] = response.data;
+    return pr ? { number: pr.number, url: pr.html_url, title: pr.title } : null;
   }
 }
