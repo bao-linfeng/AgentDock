@@ -4,6 +4,10 @@
 //  - `Runner.tokenHash` / `revoked` added (requirements.md §10 review note).
 //  - Status enums mirror the authoritative vocabulary in @agentdock/protocol
 //    (docs/architecture.md §8).
+//  - Table names are mapped to the documented snake_case names; columns keep
+//    Prisma's camelCase field names (only the physical table names are part of
+//    the documented contract).
+//  - `TaskRun.cancelRequestedAt` is the cancellation channel (architecture §9).
 
 generator client {
   provider = "prisma-client-js"
@@ -62,9 +66,11 @@ model Project {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  repositories    Repository[]
-  runnerProjects  RunnerProject[]
-  tasks           Task[]
+  repositories   Repository[]
+  runnerProjects RunnerProject[]
+  tasks          Task[]
+
+  @@map("projects")
 }
 
 model Repository {
@@ -80,6 +86,7 @@ model Repository {
 
   @@unique([provider, owner, repo])
   @@index([projectId])
+  @@map("repositories")
 }
 
 model Runner {
@@ -98,6 +105,8 @@ model Runner {
 
   runnerProjects RunnerProject[]
   taskRuns       TaskRun[]
+
+  @@map("runners")
 }
 
 model RunnerProject {
@@ -110,6 +119,7 @@ model RunnerProject {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([runnerId, projectId])
+  @@map("runner_projects")
 }
 
 model Task {
@@ -118,16 +128,22 @@ model Task {
   source    TaskSource
   // Normalized dedupe key for GitHub events (requirements.md §6 review note).
   sourceRef String?    @unique
-  intent    TaskIntent
-  prompt    String     @db.Text
-  status    TaskStatus @default(queued)
-  createdBy String?
-  createdAt DateTime   @default(now())
+  // Raw provider delivery id (GitHub `X-GitHub-Delivery`) — webhook-level
+  // idempotency key that complements `sourceRef` (docs/tasks.md T9.3).
+  deliveryId String?   @unique
+  intent     TaskIntent
+  prompt     String     @db.Text
+  status     TaskStatus @default(queued)
+  createdBy  String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   runs    TaskRun[]
 
   @@index([projectId])
+  @@index([status])
+  @@map("tasks")
 }
 
 model TaskRun {
@@ -142,15 +158,24 @@ model TaskRun {
   finishedAt   DateTime?
   errorCode    String?
   errorMessage String?   @db.Text
+  // Cancellation channel (resolves the architecture.md §9 OPEN QUESTION): the
+  // Web API stamps this column and the runner learns about it from the
+  // heartbeat response (`cancelRequested`). No `cancelling` run status is
+  // introduced — architecture §8 stays the authoritative status vocabulary.
+  cancelRequestedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  task     Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  runner   Runner?    @relation(fields: [runnerId], references: [id])
-  events   RunEvent[]
+  task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  runner    Runner?    @relation(fields: [runnerId], references: [id])
+  events    RunEvent[]
   artifacts Artifact[]
   approvals Approval[]
 
   @@index([taskId])
   @@index([runnerId])
+  @@index([status])
+  @@map("task_runs")
 }
 
 model RunEvent {
@@ -165,6 +190,7 @@ model RunEvent {
 
   @@unique([runId, seq])
   @@index([runId])
+  @@map("run_events")
 }
 
 model Artifact {
@@ -179,6 +205,7 @@ model Artifact {
   run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+  @@map("artifacts")
 }
 
 model Approval {
@@ -192,4 +219,5 @@ model Approval {
   run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+  @@map("approvals")
 }

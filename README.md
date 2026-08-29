@@ -22,14 +22,16 @@
 ---
 
 > [!NOTE]
-> **Project Status: early development — buildable foundation, MVP in progress.**
+> **Project Status: early development — Control Server up, MVP loop in progress.**
 >
 > The monorepo scaffolding is in place and several foundation packages are
 > implemented and unit-tested: protocol schemas & run-status state machine,
 > Git worktree runtime, GitHub event normalizer, task-queue engine, evidence
-> governance, and runner config/secret-redaction. The end-to-end product
-> (NestJS Control Server, OpenCode ACP executor, Web console) is **not built
-> yet** — the [Getting Started](#-getting-started-planned) steps describe the
+> governance, and runner config/secret-redaction. The **NestJS Control Server
+> now runs** (projects, tasks, runs, run events, Runner Gateway with a
+> cancellation channel — see [`apps/server/README.md`](./apps/server/README.md)).
+> The OpenCode ACP executor, the Runner loop and the Web console are **not built
+> yet** — those parts of [Getting Started](#-getting-started) describe the
 > *planned* experience. Progress and the issue mapping are tracked in
 > [`docs/tasks.md`](./docs/tasks.md) and the
 > [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues).
@@ -203,9 +205,9 @@ The system normalizes every entry point into these models (see
 
 ## 📁 Project Structure
 
-> **Planned** Monorepo layout (pnpm workspace). Foundation packages under
-> `packages/` are implemented and tested; `apps/` are still scaffolds — see
-> [Project Status](#-overview).
+> Monorepo layout (pnpm workspace). Foundation packages under `packages/` and
+> `apps/server` are implemented and tested; `apps/runner` and `apps/web` are
+> still scaffolds — see [Project Status](#-overview).
 
 ```text
 AgentDock/
@@ -248,50 +250,58 @@ AgentDock/
 
 ---
 
-## 🚀 Getting Started (Planned)
+## 🚀 Getting Started
 
 > [!IMPORTANT]
-> **These steps do not work yet.** They describe the intended developer
-> experience once the corresponding milestones (see [Roadmap](#-roadmap)) are
-> implemented. There is currently no runnable code, `package.json`, or build
-> in this repository.
+> The **Control Server runs today** (Milestone 2). The Local Runner loop and the
+> Web console are still being built, so steps 3 and 4 below describe the intended
+> developer experience rather than working commands. See [Roadmap](#-roadmap).
 
-### Prerequisites (planned)
+### Prerequisites
 
 - **Node.js** `>= 22.0.0`
-- **pnpm** `>= 9.0.0`
-- **MySQL** `>= 8.0`
+- **pnpm** `>= 10.0.0`
+- **MySQL** `>= 8.0` (or Docker: `pnpm db:up`)
 - **Git** `>= 2.30.0`
 - **OpenCode** installed locally with model credentials configured
 
-### 1. Install dependencies (planned)
+### 1. Install dependencies
 
 ```bash
-git clone https://github.com/your-org/AgentDock.git
+git clone https://github.com/bao-linfeng/AgentDock.git
 cd AgentDock
 pnpm install
 ```
 
-### 2. Configure & start the Control Server (planned)
+### 2. Configure & start the Control Server
 
 ```bash
+pnpm db:up            # MySQL 8 via Docker (MYSQL_PORT=3307 if 3306 is taken)
 cd apps/server
-cp .env.example .env
+cp env.example .env
 ```
 
 ```env
-DATABASE_URL="mysql://root:password@localhost:3306/agentdock"
-PORT=3000
-JWT_SECRET="your-jwt-secret"
-GITHUB_WEBHOOK_SECRET="your-github-webhook-secret"
-GITHUB_APP_ID="your-app-id"
-GITHUB_PRIVATE_KEY="your-private-key"
+DATABASE_URL="mysql://root:agentdock@localhost:3306/agentdock"
+PORT=3100
+PUBLIC_BASE_URL="https://your-tunnel.example.com"
+# Two independent static tokens (MVP has no users table). Generate strong values:
+#   node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+API_AUTH_TOKEN="your-web-token"
+RUNNER_TOKEN="your-runner-token"
+GITHUB_WEBHOOK_SECRET=""
+GITHUB_APP_ID=""
+GITHUB_PRIVATE_KEY=""
 ```
 
 ```bash
-pnpm prisma migrate dev
-pnpm dev
+pnpm prisma:migrate   # create the schema
+pnpm dev              # http://localhost:3100/health
 ```
+
+The full endpoint list (Web API + Runner Gateway) lives in
+[`apps/server/README.md`](./apps/server/README.md). Every route except
+`GET /health` requires a token, and the runner and web tokens must differ.
 
 ### 3. Configure & start the Local Runner (planned)
 
@@ -302,7 +312,7 @@ cp runner.config.example.json runner.config.json
 
 ```json
 {
-  "serverUrl": "http://localhost:3000",
+  "serverUrl": "http://localhost:3100",
   "runnerToken": "your-runner-token-generated-from-server",
   "runnerName": "my-dev-workstation",
   "projects": {
@@ -360,12 +370,14 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - 🟡 **Milestone 1 — Monorepo & Protocol package** *(done)*
   - ✅ pnpm workspace scaffolding
   - ✅ `@agentdock/protocol` Zod schemas & Run status state machine (`CallbackRoute` / JSON Schema export still pending)
-- ⬜ **Milestone 2 — Control Server foundation** (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6): [#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
-  - NestJS modules · Prisma schema & MySQL models · Project CRUD · Runner gateway + cancel channel
+- ✅ **Milestone 2 — Control Server foundation** *(done)* (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6): [#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
+  - ✅ NestJS modules (Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
+  - ✅ Prisma schema & MySQL migration · Project CRUD
+  - ✅ Runner Gateway (claim / events / heartbeat / complete) with cancellation via the heartbeat response
 - 🟡 **Milestone 3 — Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
   - ✅ Runner config safety & secret handling ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ Task-claim engine core ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
-  - ⬜ Registration/heartbeat · claim→execute loop
+  - ⬜ Runner-side registration/heartbeat loop · claim→execute loop
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
   - ⬜ OpenCode ACP executor · ACP → RunEvent bridge
@@ -382,7 +394,8 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ⬜ Approval model (phase 2)
 - 🟡 **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
-  - ⬜ Runner disconnect handling · retry · idempotency
+  - 🟡 Idempotency: task dedupe keys, atomic claim, guarded complete ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ⬜ Runner disconnect handling · retry
 
 ### Explicitly out of scope (until the single-machine OpenCode + GitHub loop works)
 

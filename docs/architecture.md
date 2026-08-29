@@ -300,11 +300,13 @@ packages/governance
 
 ## 7. 数据库
 
-> **[TODO]** 缺少 `users` 表：`tasks.created_by` 与 AuthModule / JWT 依赖用户实体，但下方无 `users` 定义。请补最小 `users` 表，或明确 MVP 用单一静态 token。
+> **[已决策 2026-08-29]** 不建 `users` 表：MVP 采用两个独立静态 token（`API_AUTH_TOKEN` 用于 Web，`RUNNER_TOKEN` 用于 Runner），无登录流程 / JWT。`tasks.created_by` 退化为自由文本（例如 GitHub 用户名），不外键关联。
 >
-> **[TODO]** `runners` 表缺少 token 相关字段：安全要求"Runner Token 独立且可撤销"（requirements.md §10），需新增 `token_hash` / `revoked` / `revoked_at`。
+> **[已实现]** `runners` 增加 `token_hash` / `revoked` / `revoked_at`（requirements.md §10）：只存哈希，可单独撤销。
 >
-> **[OPEN QUESTION]** `projects.workspace_key` 与 `runner_projects.workspace_path` 的关系未说明：`workspace_key` 是逻辑标识、`workspace_path` 是各 Runner 本地实际路径？需明确 root containment 校验相对哪个根、由谁执行。
+> **[已澄清]** `projects.workspace_key` 是**逻辑标识**（服务端与 Runner 共用的项目键，不含路径）；`runner_projects.workspace_path` 是**该 Runner 本机的绝对路径**。root containment 校验相对 Runner 本地配置的 `allowedRoots`，由 **Runner** 执行（Control Server 不访问本地文件系统）；Server 只负责保证"未映射 / 未启用的项目不会被领取"。
+>
+> **[实现补充]** 表名映射为下列 snake_case 名称，列名沿用 Prisma 的 camelCase；`task_runs` 另有 `cancel_requested_at`（见 §9）与 `created_at` / `updated_at`，`tasks` 另有 `delivery_id`（GitHub 投递去重）。
 
 ### projects
 
@@ -340,6 +342,9 @@ machine_name
 platform
 version
 status
+token_hash
+revoked
+revoked_at
 last_heartbeat_at
 created_at
 ```
@@ -360,11 +365,13 @@ id
 project_id
 source
 source_ref
+delivery_id
 intent
 prompt
 status
 created_by
 created_at
+updated_at
 ```
 
 ### task_runs
@@ -381,6 +388,9 @@ started_at
 finished_at
 error_code
 error_message
+cancel_requested_at
+created_at
+updated_at
 ```
 
 ### run_events
@@ -448,16 +458,30 @@ running
 
 ## 9. Runner 通信
 
-MVP 推荐：
+MVP 实现（已完成，#22）：
 
 ```text
-Runner → GET /runner/tasks/claim
+Runner → POST /runner/register
+Runner → GET  /runner/tasks/claim
 Runner → POST /runner/runs/:id/events
 Runner → POST /runner/runs/:id/heartbeat
 Runner → POST /runner/runs/:id/complete
+Runner → POST /runner/heartbeat          # 空闲心跳
 ```
 
-> **[OPEN QUESTION — 取消信号下发缺口]** US-04 要求可取消（Web→Control 标记 cancelling→Runner 收到→ACP cancel），但上述纯出站轮询端点中没有任何"接收取消信号"的通道。Runner 运行中如何得知被取消？需明确机制：例如 `heartbeat` 响应体携带 `cancelRequested` 标志，或新增长轮询/SSE 下行通道。这是功能级缺口，须在定协议时一并设计。
+> **[已决策 2026-08-29 — 取消信号下发]** 取消走 **heartbeat 响应**：Web 调用
+> `POST /runs/:id/cancel` 时，Server 给 `task_runs.cancel_requested_at` 打时间戳；
+> Runner 的下一次 `POST /runner/runs/:id/heartbeat` 收到 `{ cancelRequested: true }`
+> 后调用 ACP cancel，并以 `complete { status: 'cancelled' }` 收尾。**不新增
+> `cancelling` 状态**，§8 仍是状态词汇的唯一权威来源。尚未被领取的 Run 由 Server
+> 直接置为 `cancelled`，无需 Runner 参与。因此不需要任何指向 Runner 的入站通道。
+
+补充约定：
+
+- claim 是单条条件 UPDATE（`WHERE status='queued' AND runner_id IS NULL`），并发 claim 不会重复领取；MVP 单 Runner 同时只跑一个任务。
+- Runner 只能领取"已映射且启用"的项目（§14）。
+- `status` 事件驱动状态机；`succeeded` 必须先经过 `verifying` → `publishing`。
+- RunEvent payload 落库前统一过 `redactSecrets`（§14）。
 
 Web 实时状态：
 
