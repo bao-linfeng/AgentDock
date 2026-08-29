@@ -625,7 +625,15 @@ orchestrator
    └─ fixer
 ```
 
-> **[TODO — 描述与实物核对]** oh-my-opencode-slim 真实存在（https://github.com/alvinunreal/oh-my-opencode-slim ），但其内部专职 agent 命名与上图的 `designer / explorer / fixer` 不完全吻合（实际为 scout / docs / review / UI / implementation 一类）。因架构已声明"禁止 Control Server 依赖这些名字"，不影响设计，但**此处示意文字应按实际插件更新**。
+> **[已核对，T0.2 / #17]** oh-my-opencode-slim 真实存在
+> （https://github.com/alvinunreal/oh-my-opencode-slim ）。经
+> [`docs/research/omo-slim-acp-compat-notes.md`](./research/omo-slim-acp-compat-notes.md)
+> 实测确认，其内部专职 agent 实际命名为 `explorer / oracle / council /
+> librarian / designer / fixer`（外加 `orchestrator` 本身），与上图 `designer
+> / explorer / fixer` 的简化示意不完全一致。因架构已声明"禁止 Control Server
+> 依赖这些名字"，不影响设计——委派在 ACP 事件流中始终表现为通用的
+> `tool_call`/`tool_call_update`，调用方无需感知具体子 agent 名称，此点已在
+> T0.2 验证中确认成立。
 
 禁止 Control Server 直接依赖 OMO Slim 的 agent 名称。
 

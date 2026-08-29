@@ -9,7 +9,7 @@
 | 里程碑 | 任务 | 状态 | Issue / PR |
 | --- | --- | --- | --- |
 | M0 技术验证 | T0.1 ACP 冒烟测试 | ✅ | #16 |
-| | T0.2 OMO Slim 兼容性 | ⬜ | #17 |
+| | T0.2 OMO Slim 兼容性 | ✅ | #17 |
 | | T0.3 OpenTag 源码走读 | ⬜ | #18 |
 | M1 Monorepo 与 Protocol | T1.1 初始化 Monorepo | ✅ | 基线提交 |
 | | T1.2 Protocol Schema | 🟡 | 基线提交 |
@@ -85,24 +85,39 @@
 
 **优先级：** P0
 
-> ⬜ 待办（#17）
+> ✅ 已完成（#17）——`packages/agent-runtime/src/smoke/omo-slim-acp-smoke.ts`
+> （运行：`pnpm --filter @agentdock/agent-runtime run smoke:omo-slim`，需要本机
+> 已安装 `opencode` 并完成 `opencode providers login`，且能联网拉取
+> `oh-my-opencode-slim@latest` 插件）。验证在隔离环境（`XDG_CONFIG_HOME`
+> 指向临时空目录，仅由项目本地 `opencode.json` 的 `plugin` 字段启用 OMO
+> Slim）下进行，结果不依赖任何开发者机器上已有的全局配置。详细过程与结论见
+> [`docs/research/omo-slim-acp-compat-notes.md`](./research/omo-slim-acp-compat-notes.md)。
 
 验证：
 
-- [ ] pure mode 下插件是否加载
-- [ ] orchestrator 是否正常
-- [ ] designer / fixer / explorer 委派是否正常
-- [ ] 是否污染 ACP stdout
-- [ ] cancel 是否正常
-- [ ] cwd 是否始终位于 Worktree
+- [x] pure mode（即纯 ACP 协议通道，不依赖 TUI stdout parser）下插件是否加载
+- [x] orchestrator 是否正常
+- [x] designer / fixer / explorer 委派是否正常（以 explorer 为例验证通过）
+- [x] 是否污染 ACP stdout（未污染，ndjson 解析全程无错误）
+- [x] cancel 是否正常
+- [x] cwd 是否始终位于 Worktree
 
 结论输出：
 
 ```text
-compatible
 compatible_with_limitations
-incompatible
 ```
+
+两点已知限制（不阻塞 MVP，已记录为后续待办）：
+
+1. `OpenCodeExecutorOptions` 目前没有一等的开关来强制 `opencode acp --pure`
+   （禁用外部插件）；只能通过某个项目自身的 `opencode.json` 移除插件配置来
+   规避不兼容的插件。
+2. OMO Slim 内部专职 agent 命名（`explorer / oracle / council / librarian /
+   designer / fixer` + `orchestrator`）与 `docs/architecture.md` §12 图示的
+   简化命名不完全一致（该文档已有 TODO 标注此差异）；Control Server 必须继续
+   不依赖这些内部名称——已确认委派在 ACP 事件流中始终表现为通用的
+   `tool_call`/`tool_call_update`，调用方无需感知具体子 agent 名称。
 
 ### T0.3 OpenTag Runner Code Reading
 
