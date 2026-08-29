@@ -460,6 +460,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ Failure diagnosis: retry entry point + `errorCode` on the task detail view ([#61](https://github.com/bao-linfeng/AgentDock/issues/61))
 - ✅ **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
+  - ✅ Per-project evidence rules ([#60](https://github.com/bao-linfeng/AgentDock/issues/60)): a project without a remote (or without the GitHub App configured) can drop `pull_request` instead of failing every `fix` run with `evidence_incomplete`. Configured on the project (`projects.evidenceRulesJson`), merged onto the defaults, and shared by the Control Server and the Runner (sent with the claim response).
   - ✅ Approval model ([#37](https://github.com/bao-linfeng/AgentDock/issues/37)): shell / push / destructive-operation approval gates, `needs_approval` wired end to end through the Runner (`apps/runner/src/approval-gate.ts`) and Web console (`apps/server/src/approvals`, `apps/web/src/components/ApprovalPanel.vue`)
 - ✅ **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))

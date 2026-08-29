@@ -61,9 +61,38 @@ export interface ProjectDto {
   defaultBranch: string;
   testCommand?: string;
   buildCommand?: string;
+  /** Per-intent evidence overrides; absent means the server defaults apply (#60). */
+  evidenceRules?: EvidenceRulesOverride;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type EvidenceKind =
+  | 'git_changes'
+  | 'test_result'
+  | 'commit'
+  | 'pull_request'
+  | 'review_report';
+
+export const EVIDENCE_KINDS: EvidenceKind[] = [
+  'git_changes',
+  'test_result',
+  'commit',
+  'pull_request',
+  'review_report',
+];
+
+/** Mirrors `EvidenceRulesOverrideSchema` in @agentdock/protocol (#60). */
+export type EvidenceRulesOverride = Partial<Record<TaskIntent, EvidenceKind[]>>;
+
+/** Mirrors `DEFAULT_EVIDENCE_RULES` in @agentdock/governance — shown as the baseline. */
+export const DEFAULT_EVIDENCE_RULES: Record<TaskIntent, EvidenceKind[]> = {
+  fix: ['git_changes', 'test_result', 'commit', 'pull_request'],
+  implement: ['git_changes', 'test_result', 'commit', 'pull_request'],
+  test: ['git_changes', 'test_result', 'commit'],
+  review: ['review_report'],
+  general: [],
+};
 
 export interface CreateProjectInput {
   name: string;
@@ -71,6 +100,7 @@ export interface CreateProjectInput {
   defaultBranch?: string;
   testCommand?: string | null;
   buildCommand?: string | null;
+  evidenceRules?: EvidenceRulesOverride | null;
 }
 
 export type UpdateProjectInput = Partial<CreateProjectInput>;

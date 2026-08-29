@@ -63,6 +63,14 @@ model Project {
   defaultBranch String   @default("main")
   testCommand   String?
   buildCommand  String?
+  // Per-project evidence-rule overrides (docs/tasks.md T8.4, #60): a partial
+  // per-intent map of required evidence kinds, merged onto
+  // `DEFAULT_EVIDENCE_RULES` from @agentdock/governance via `withProjectRules`.
+  // Validated by `EvidenceRulesOverrideSchema` in @agentdock/protocol. Null =
+  // use the defaults. Lets a project without a remote (or without the GitHub
+  // App configured) drop `pull_request` instead of failing every fix run with
+  // `evidence_incomplete` (docs/requirements.md §9).
+  evidenceRulesJson Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

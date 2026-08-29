@@ -22,7 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import type { CreateProjectInput, ProjectDto, RunnerProjectDto } from '../types';
+import { Checkbox } from '../components/ui/checkbox';
+import {
+  EDITABLE_INTENTS,
+  type EditableEvidenceRules,
+  fromEditableRules,
+  toEditableRules,
+  toggleKind,
+} from '../lib/evidence-rules';
+import {
+  type CreateProjectInput,
+  DEFAULT_EVIDENCE_RULES,
+  type EvidenceKind,
+  type ProjectDto,
+  type RunnerProjectDto,
+  type TaskIntent,
+} from '../types';
 
 // Projects (docs/tasks.md T7.2 / issue #33): list, create/edit, runner mapping.
 //
@@ -53,12 +68,35 @@ const form = reactive<CreateProjectInput>({
   buildCommand: '',
 });
 
+// Per-project evidence rules (docs/tasks.md T8.4 / issue #60). The form always
+// edits a full per-intent map; only the intents that differ from the defaults
+// are sent (see lib/evidence-rules.ts).
+const customEvidence = ref(false);
+const evidenceRules = ref<EditableEvidenceRules>(toEditableRules(null));
+
+/** Evidence kinds offered per intent — `review` only has a report. */
+function kindsFor(intent: TaskIntent): EvidenceKind[] {
+  return intent === 'review'
+    ? ['review_report']
+    : ['git_changes', 'test_result', 'commit', 'pull_request'];
+}
+
+function isChecked(intent: TaskIntent, kind: EvidenceKind): boolean {
+  return evidenceRules.value[intent].includes(kind);
+}
+
+function setChecked(intent: TaskIntent, kind: EvidenceKind, checked: boolean): void {
+  toggleKind(evidenceRules.value[intent], kind, checked);
+}
+
 function resetForm() {
   form.name = '';
   form.workspaceKey = '';
   form.defaultBranch = 'main';
   form.testCommand = '';
   form.buildCommand = '';
+  customEvidence.value = false;
+  evidenceRules.value = toEditableRules(null);
   editingId.value = null;
   formError.value = null;
 }
@@ -75,6 +113,8 @@ function startEdit(project: ProjectDto) {
   form.defaultBranch = project.defaultBranch;
   form.testCommand = project.testCommand ?? '';
   form.buildCommand = project.buildCommand ?? '';
+  customEvidence.value = !!project.evidenceRules;
+  evidenceRules.value = toEditableRules(project.evidenceRules);
   formError.value = null;
   showForm.value = true;
 }
@@ -87,6 +127,7 @@ const saveMutation = useMutation({
       defaultBranch: form.defaultBranch?.trim() || 'main',
       testCommand: form.testCommand?.trim() ? form.testCommand.trim() : null,
       buildCommand: form.buildCommand?.trim() ? form.buildCommand.trim() : null,
+      evidenceRules: fromEditableRules(evidenceRules.value, customEvidence.value),
     };
     if (editingId.value) {
       return projectsApi.update(editingId.value, payload);
@@ -237,6 +278,7 @@ runnersQuery.suspense().then(refreshMappings);
           默认分支：{{ project.defaultBranch }}
           <span v-if="project.testCommand"> · 测试命令：{{ project.testCommand }}</span>
           <span v-if="project.buildCommand"> · 构建命令：{{ project.buildCommand }}</span>
+          <span v-if="project.evidenceRules"> · 证据规则：已自定义</span>
         </div>
 
         <RepositoryBindingPanel :project-id="project.id" />
@@ -366,6 +408,50 @@ runnersQuery.suspense().then(refreshMappings);
             />
           </div>
           <p v-if="formError" class="text-sm text-destructive">{{ formError }}</p>
+
+          <div class="flex flex-col gap-2 border-t pt-3">
+            <div class="flex items-start gap-2">
+              <Checkbox
+                id="custom-evidence"
+                :model-value="customEvidence"
+                @update:model-value="(v) => (customEvidence = v === true)"
+              />
+              <div class="flex flex-col gap-0.5">
+                <Label for="custom-evidence">自定义证据规则</Label>
+                <span class="text-xs text-muted-foreground">
+                  默认要求 fix / implement 满足变更 + 测试 + 提交 + PR。没有远端仓库
+                  或未配置 GitHub App 的项目应去掉 pull_request，否则这类任务会一直
+                  失败于 evidence_incomplete。
+                </span>
+              </div>
+            </div>
+
+            <div v-if="customEvidence" class="flex flex-col gap-3">
+              <div
+                v-for="intent in EDITABLE_INTENTS"
+                :key="intent"
+                class="flex flex-col gap-1.5 rounded-md border p-2"
+              >
+                <span class="text-sm font-medium text-foreground">{{ intent }}</span>
+                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                  <label
+                    v-for="kind in kindsFor(intent)"
+                    :key="kind"
+                    class="flex items-center gap-1.5 text-sm text-muted-foreground"
+                  >
+                    <Checkbox
+                      :model-value="isChecked(intent, kind)"
+                      @update:model-value="(v) => setChecked(intent, kind, v === true)"
+                    />
+                    {{ kind }}
+                  </label>
+                </div>
+                <span class="text-xs text-muted-foreground">
+                  默认：{{ DEFAULT_EVIDENCE_RULES[intent].join(', ') || '（无要求）' }}
+                </span>
+              </div>
+            </div>
+          </div>
 
           <DialogFooter>
             <Button variant="outline" type="button" @click="showForm = false">取消</Button>

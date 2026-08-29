@@ -17,6 +17,40 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
 export const RunStatusSchema = z.enum(RUN_STATUSES);
 
+/**
+ * A single piece of objective evidence a run can produce
+ * (docs/requirements.md §9, docs/tasks.md T8.1). Lives in the protocol package
+ * because evidence rules travel over the wire: the Control Server hands a
+ * project's rules to the runner in the claim response.
+ */
+export const EvidenceKindSchema = z.enum([
+  'git_changes',
+  'test_result',
+  'commit',
+  'pull_request',
+  'review_report',
+]);
+export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;
+
+/**
+ * Per-project override of the default per-intent evidence rules
+ * (docs/requirements.md §9 review note, docs/tasks.md T8.4 / #60). Only the
+ * intents present here are replaced; the rest keep `DEFAULT_EVIDENCE_RULES`
+ * from `@agentdock/governance`.
+ *
+ * The typical use is a project without a remote (or without the GitHub App
+ * configured) dropping `pull_request` from `fix` / `implement`, which would
+ * otherwise make every such run fail with `evidence_incomplete`.
+ */
+export const EvidenceRulesOverrideSchema = z.object({
+  fix: z.array(EvidenceKindSchema).optional(),
+  implement: z.array(EvidenceKindSchema).optional(),
+  review: z.array(EvidenceKindSchema).optional(),
+  test: z.array(EvidenceKindSchema).optional(),
+  general: z.array(EvidenceKindSchema).optional(),
+});
+export type EvidenceRulesOverride = z.infer<typeof EvidenceRulesOverrideSchema>;
+
 export const AgentTaskSchema = z.object({
   id: z.string(),
   projectId: z.string(),

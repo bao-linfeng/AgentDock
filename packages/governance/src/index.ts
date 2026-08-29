@@ -1,12 +1,6 @@
-import type { RunArtifact, TaskIntent } from '@agentdock/protocol';
+import type { EvidenceKind, RunArtifact, TaskIntent } from '@agentdock/protocol';
 
-/** A single piece of evidence required for a task to be considered done. */
-export type EvidenceKind =
-  | 'git_changes'
-  | 'test_result'
-  | 'commit'
-  | 'pull_request'
-  | 'review_report';
+export type { EvidenceKind };
 
 export type EvidenceRules = Record<TaskIntent, EvidenceKind[]>;
 
@@ -68,7 +62,11 @@ export function collectEvidence(artifacts: RunArtifact[]): Set<EvidenceKind> {
   return present;
 }
 
-const EVIDENCE_KINDS: readonly EvidenceKind[] = [
+/**
+ * All evidence kinds. Mirrors `EvidenceKindSchema` in `@agentdock/protocol`
+ * (kept as a plain array here so this package stays zod-free).
+ */
+export const EVIDENCE_KINDS: readonly EvidenceKind[] = [
   'git_changes',
   'test_result',
   'commit',

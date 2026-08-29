@@ -327,9 +327,17 @@ workspace_key
 default_branch
 test_command
 build_command
+evidence_rules_json
 created_at
 updated_at
 ```
+
+> **[实现补充 #60]** `evidence_rules_json`（Prisma 列名 `evidenceRulesJson`）保存
+> per-intent 的证据规则覆盖，`NULL` 表示使用 `@agentdock/governance` 的
+> `DEFAULT_EVIDENCE_RULES`。schema 见 `@agentdock/protocol` 的
+> `EvidenceRulesOverrideSchema`；服务端与 Runner 都用 `withProjectRules` 合并后
+> 判定完成（规则随 claim 响应下发给 Runner）。典型用途：没有远端仓库的项目去掉
+> `pull_request`，见 requirements.md §9。
 
 ### repositories
 
