@@ -399,8 +399,8 @@ pnpm dev
 里程碑与进度记录在 [`docs/tasks.md`](./docs/tasks.md)，含完整的"任务 ↔ issue"对照表。
 图例:✅ 已完成 · 🟡 部分完成 · ⬜ 待办。基础包(#1–#5)已合并，接下来是端到端闭环。
 
-- 🟡 **Milestone 0 —— 技术验证与协议定义** ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
-  - ✅ OpenCode ACP Smoke Test（[#16](https://github.com/bao-linfeng/AgentDock/issues/16)，`packages/agent-runtime/src/smoke/opencode-acp-smoke.ts`） · ✅ OMO Slim 兼容性（[#17](https://github.com/bao-linfeng/AgentDock/issues/17)，`packages/agent-runtime/src/smoke/omo-slim-acp-smoke.ts` —— 结论：`compatible_with_limitations`，详见 [`docs/research/omo-slim-acp-compat-notes.md`](./docs/research/omo-slim-acp-compat-notes.md)） · ⬜ OpenTag Runner 代码研读
+- ✅ **Milestone 0 —— 技术验证与协议定义** *(已完成)* ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
+  - ✅ OpenCode ACP Smoke Test（[#16](https://github.com/bao-linfeng/AgentDock/issues/16)，`packages/agent-runtime/src/smoke/opencode-acp-smoke.ts`） · ✅ OMO Slim 兼容性（[#17](https://github.com/bao-linfeng/AgentDock/issues/17)，`packages/agent-runtime/src/smoke/omo-slim-acp-smoke.ts` —— 结论：`compatible_with_limitations`，详见 [`docs/research/omo-slim-acp-compat-notes.md`](./docs/research/omo-slim-acp-compat-notes.md)） · ✅ OpenTag Runner 代码研读（[#18](https://github.com/bao-linfeng/AgentDock/issues/18)，详见 [`docs/research/opentag-runner-notes.md`](./docs/research/opentag-runner-notes.md)）
 - 🟡 **Milestone 1 —— Monorepo 与 Protocol 包** *(已完成)*
   - ✅ pnpm workspace 脚手架
   - ✅ `@agentdock/protocol` Zod Schema 与 Run 状态机(`CallbackRoute` / JSON Schema 导出待补)
