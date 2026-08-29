@@ -22,13 +22,16 @@
 ---
 
 > [!NOTE]
-> **项目状态:早期开发中 —— 已有可构建的基础，MVP 推进中。**
+> **项目状态:早期开发中 —— Control Server 已可运行，MVP 闭环推进中。**
 >
 > Monorepo 脚手架已就绪，多个基础包已实现并有单元测试:protocol Schema 与
 > Run 状态机、Git Worktree 运行时、GitHub 事件归一化、任务队列引擎、证据治理，
-> 以及 Runner 配置/密钥脱敏。端到端产品(NestJS Control Server、OpenCode ACP
-> 执行器、Web 控制台)**尚未构建** —— 下文 [快速开始](#-快速开始规划中) 描述的是
-> *规划中* 的体验。进度与 issue 对照见 [`docs/tasks.md`](./docs/tasks.md) 与
+> 以及 Runner 配置/密钥脱敏。**NestJS Control Server 现已可运行**(项目、任务、
+> Run、Run 事件、带取消通道的 Runner 网关，见
+> [`apps/server/README.md`](./apps/server/README.md))。OpenCode ACP 执行器、
+> Runner 主循环与 Web 控制台 **尚未构建** —— 下文 [快速开始](#-快速开始) 中相应
+> 步骤描述的是 *规划中* 的体验。进度与 issue 对照见
+> [`docs/tasks.md`](./docs/tasks.md) 与
 > [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues)。
 
 ---
@@ -186,8 +189,8 @@ queued ──▶ assigned ──▶ running ──▶ verifying ──▶ publis
 
 ## 📁 目录结构
 
-> **规划中** 的 Monorepo 结构(基于 pnpm workspace)。`packages/` 下的基础包已实现
-> 并测试;`apps/` 仍为脚手架，详见 [项目状态](#-项目简介)。
+> Monorepo 结构(基于 pnpm workspace)。`packages/` 下的基础包与 `apps/server`
+> 已实现并测试;`apps/runner`、`apps/web` 仍为脚手架，详见 [项目状态](#-项目简介)。
 
 ```text
 AgentDock/
@@ -230,48 +233,58 @@ AgentDock/
 
 ---
 
-## 🚀 快速开始(规划中)
+## 🚀 快速开始
 
 > [!IMPORTANT]
-> **以下步骤当前尚不可用。** 它们描述的是对应里程碑(见 [路线图](#-里程碑与路线图))
-> 实现之后的预期开发体验。本仓库目前没有任何可运行的代码、`package.json` 或构建。
+> **Control Server 现在已经可以跑起来**(里程碑 2)。Local Runner 主循环与 Web
+> 控制台仍在开发中,因此下面第 3、4 步描述的是规划中的体验。见
+> [路线图](#-里程碑与路线图)。
 
-### 前置依赖(规划中)
+### 前置依赖
 
 - **Node.js**：`>= 22.0.0`
-- **pnpm**：`>= 9.0.0`
-- **MySQL**：`>= 8.0`
+- **pnpm**：`>= 10.0.0`
+- **MySQL**：`>= 8.0`(或用 Docker：`pnpm db:up`)
 - **Git**：`>= 2.30.0`
 - **OpenCode**：本地已安装并配置好模型凭据
 
-### 1. 安装依赖(规划中)
+### 1. 安装依赖
 
 ```bash
-git clone https://github.com/your-org/AgentDock.git
+git clone https://github.com/bao-linfeng/AgentDock.git
 cd AgentDock
 pnpm install
 ```
 
-### 2. 配置与启动 Control Server(规划中)
+### 2. 配置与启动 Control Server
 
 ```bash
+pnpm db:up            # 用 Docker 起 MySQL 8(3306 被占用时 MYSQL_PORT=3307)
 cd apps/server
-cp .env.example .env
+cp env.example .env
 ```
 
 ```env
-DATABASE_URL="mysql://root:password@localhost:3306/agentdock"
-PORT=3000
-JWT_SECRET="your-jwt-secret"
-GITHUB_WEBHOOK_SECRET="your-github-webhook-secret"
-GITHUB_APP_ID="your-app-id"
-GITHUB_PRIVATE_KEY="your-private-key"
+DATABASE_URL="mysql://root:agentdock@localhost:3306/agentdock"
+PORT=3100
+PUBLIC_BASE_URL="https://your-tunnel.example.com"
+# 两个相互独立的静态 token(MVP 不做 users 表)。生成强随机值：
+#   node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+API_AUTH_TOKEN="your-web-token"
+RUNNER_TOKEN="your-runner-token"
+GITHUB_WEBHOOK_SECRET=""
+GITHUB_APP_ID=""
+GITHUB_PRIVATE_KEY=""
 ```
 
 ```bash
-pnpm prisma migrate dev
-pnpm dev
+pnpm prisma:migrate   # 建表
+pnpm dev              # http://localhost:3100/health
 ```
+
+完整接口清单(Web API 与 Runner Gateway)见
+[`apps/server/README.md`](./apps/server/README.md)。除 `GET /health` 外所有路由
+都需要 token,且 Web token 与 Runner token 必须不同。
 
 ### 3. 配置与启动 Local Runner(规划中)
 
@@ -282,7 +295,7 @@ cp runner.config.example.json runner.config.json
 
 ```json
 {
-  "serverUrl": "http://localhost:3000",
+  "serverUrl": "http://localhost:3100",
   "runnerToken": "your-runner-token-generated-from-server",
   "runnerName": "my-dev-workstation",
   "projects": {
@@ -339,12 +352,14 @@ pnpm dev
 - 🟡 **Milestone 1 —— Monorepo 与 Protocol 包** *(已完成)*
   - ✅ pnpm workspace 脚手架
   - ✅ `@agentdock/protocol` Zod Schema 与 Run 状态机(`CallbackRoute` / JSON Schema 导出待补)
-- ⬜ **Milestone 2 —— Control Server 基础** (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6):[#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
-  - NestJS 模块 · Prisma Schema 与 MySQL 模型 · Project CRUD · Runner 网关 + 取消通道
+- ✅ **Milestone 2 —— Control Server 基础** *(已完成)* (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6):[#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
+  - ✅ NestJS 模块(Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
+  - ✅ Prisma Schema 与 MySQL 迁移 · Project CRUD
+  - ✅ Runner 网关(claim / events / heartbeat / complete)与经 heartbeat 下发的取消通道
 - 🟡 **Milestone 3 —— Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
   - ✅ Runner 配置安全与密钥处理 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ 任务领取引擎核心 ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
-  - ⬜ 注册/心跳 · 领取→执行主循环
+  - ⬜ Runner 侧注册/心跳循环 · 领取→执行主循环
 - 🟡 **Milestone 4 —— Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7):[#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` 接口
   - ⬜ OpenCode ACP Executor · ACP → RunEvent 桥接
@@ -361,7 +376,8 @@ pnpm dev
   - ⬜ 审批模型(第二阶段)
 - 🟡 **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
-  - ⬜ 断线重连处理 · 重试 · 幂等
+  - 🟡 幂等:Task 去重键、原子 claim、complete 守卫 ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ⬜ 断线重连处理 · 重试
 
 ### 明确不做(在单机 OpenCode + GitHub 闭环跑通之前)
 

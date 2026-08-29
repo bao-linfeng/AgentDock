@@ -92,26 +92,27 @@ Issue Comment：
 
 ### US-03 查看进度
 
-用户可以在手机 Web 页面看到：
+用户可以在手机 Web 页面看到（状态词汇以 architecture.md §8 为权威，已统一）：
 
 - queued
 - assigned
 - running
-- testing
-- pushing
-- pull_request_created
-- succeeded / failed
+- needs_approval
+- verifying
+- publishing
+- succeeded / failed / cancelled
 
-> **[OPEN QUESTION]** 上述 `testing` / `pushing` / `pull_request_created` 与 architecture.md §8 状态机（`verifying` / `publishing`）命名不一致。请统一为权威枚举后再用于 UI 展示。
+> **[已统一 2026-08-29]** 原先的 `testing` / `pushing` / `pull_request_created` 已废弃，改用 `verifying` / `publishing`；实现见 `packages/protocol/src/status.ts` 与 `apps/server` 的 `run_events` 状态事件。
 
 ### US-04 取消任务
 
 用户点击 Cancel：
 
-- Control Server 将 Run 标记 cancelling。
-- Runner 收到取消信号。
+- Control Server 给 Run 打上取消请求标记（`task_runs.cancel_requested_at`，**不引入 `cancelling` 状态**）。
+- 尚未被领取的 Run 直接置为 `cancelled`。
+- 已在执行的 Run：Runner 在下一次 heartbeat 响应中收到 `cancelRequested: true`。
 - ACP Executor 执行 cancel。
-- 记录取消结果。
+- Runner 以 `complete { status: 'cancelled' }` 记录取消结果。
 
 ### US-05 失败可诊断
 
@@ -129,27 +130,27 @@ Issue Comment：
 
 ## 5. 数据模型
 
-> **[OPEN QUESTION — 2026-08-29 评审]** 状态词汇表在三处不一致，需统一为唯一权威枚举：
-> - 本节 `AgentRun.status` 缺少 `verifying` / `publishing`（见 architecture.md §8 状态机）。
-> - 下方 US-03 使用了 `testing` / `pushing` / `pull_request_created`，与状态机命名不符。
+> **[已统一 2026-08-29]** 状态词汇以 architecture.md §8 为唯一权威来源，本节与 US-03 已回填：`AgentRun.status` 补齐 `verifying` / `publishing`，实现见 `packages/protocol/src/status.ts`。
 >
-> 建议以 architecture.md §8 为唯一权威来源，回填本节数据模型与 US-03。
+> **[已定义]** `TaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'`（粗粒度）。Task 状态由其**最新 Run** 的状态派生：`assigned` → `queued`；`running` / `needs_approval` / `verifying` / `publishing` → `running`；终态同名映射。实现见 `packages/task-engine` 的 `deriveTaskStatus`（重试见 tasks.md T9.2：新 Run 保留旧事件，Task 状态跟随最新 Run）。
 >
-> **[TODO]** `TaskStatus` 类型在此被引用但从未定义。请补充其取值集合，并明确 `AgentTask.status` 与 `AgentRun.status` 的派生关系（一个 Task 可对应多个 Run，见 tasks.md T9.2 重试；需说明 Task 状态如何从多个 Run 聚合）。
->
-> **[TODO]** 缺少用户/认证实体：`tasks.created_by`、`AuthModule`、`JWT_SECRET` 均已出现，但本节与 architecture.md §7 数据库均无 `users` 表。请补最小 `users` 表，或明确声明"MVP 使用单一静态 token、无 users 表"。
+> **[已决策]** **MVP 使用两个独立静态 token（Web / Runner），不做 users 表、不做 JWT**。`tasks.created_by` 为自由文本（如 GitHub 用户名）。Runner token 以 `runners.token_hash` 落库并可单独撤销。
 
 ### AgentTask
 
 ```ts
+type TaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
 interface AgentTask {
   id: string;
   projectId: string;
   source: "web" | "github";
   sourceRef?: string;
+  deliveryId?: string;
   intent: "fix" | "implement" | "review" | "test" | "general";
   prompt: string;
   status: TaskStatus;
+  createdBy?: string;
   createdAt: string;
 }
 ```
@@ -167,14 +168,17 @@ interface AgentRun {
     | "assigned"
     | "running"
     | "needs_approval"
+    | "verifying"
+    | "publishing"
     | "succeeded"
     | "failed"
     | "cancelled";
-  // [OPEN QUESTION] 缺少 "verifying" / "publishing"，与 architecture.md §8 状态机不一致，需统一。
   branch?: string;
   worktreePath?: string;
   startedAt?: string;
   finishedAt?: string;
+  /** 取消请求时间戳；Runner 通过 heartbeat 响应的 cancelRequested 感知。 */
+  cancelRequestedAt?: string;
 }
 ```
 

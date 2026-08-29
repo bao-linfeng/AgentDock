@@ -1,5 +1,8 @@
 # Local development services. The Control Server connects to this MySQL instance.
 # Start with:  pnpm db:up   (or)  docker compose up -d mysql
+#
+# Host port is configurable via MYSQL_PORT (default 3306) for machines that
+# already run MySQL on 3306; keep DATABASE_URL in apps/server/.env in sync.
 services:
   mysql:
     image: mysql:8.0
@@ -9,7 +12,7 @@ services:
       MYSQL_ROOT_PASSWORD: agentdock
       MYSQL_DATABASE: agentdock
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - agentdock-mysql-data:/var/lib/mysql
     healthcheck:

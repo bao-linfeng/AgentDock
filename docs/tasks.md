@@ -14,13 +14,13 @@
 | M1 Monorepo 与 Protocol | T1.1 初始化 Monorepo | ✅ | 基线提交 |
 | | T1.2 Protocol Schema | 🟡 | 基线提交 |
 | | T1.3 Run 状态机 | ✅ | 基线提交 |
-| M2 Server 基础 | T2.1 NestJS 模块 | ⬜ | #19（epic #6） |
-| | T2.2 Prisma Schema | ⬜ | #20 |
-| | T2.3 Project CRUD | ⬜ | #21 |
-| | T2.4 Runner Gateway 与取消通道 | ⬜ | #22 |
+| M2 Server 基础 | T2.1 NestJS 模块 | ✅ | #19（epic #6） |
+| | T2.2 Prisma Schema | ✅ | #20 |
+| | T2.3 Project CRUD | ✅ | #21 |
+| | T2.4 Runner Gateway 与取消通道 | ✅ | #22 |
 | M3 Local Runner | T3.1 Runner 配置安全 | ✅ | #5 / PR #14 |
-| | T3.2 注册与心跳 | ⬜ | #23 |
-| | T3.3 项目映射（根包含校验） | 🟡 | #5（部分）/ #24 |
+| | T3.2 注册与心跳 | 🟡 | #23（服务端接口已完成，Runner 侧待做） |
+| | T3.3 项目映射（根包含校验） | 🟡 | #5（部分）/ #24（服务端映射接口已完成） |
 | | T3.4 任务领取核心 | ✅ | #3 / PR #12 |
 | | T3.4b Runner 领取→执行主循环 | ⬜ | #24 |
 | M4 Agent Runtime | T4.1 AgentExecutor 接口 | ✅ | 基线提交 |
@@ -46,7 +46,7 @@
 | | T8.3 审批模型 | ⬜ | #37 |
 | M9 稳定性 | T9.1 Runner 断连 | ⬜ | #38（epic #9） |
 | | T9.2 重试 | ⬜ | #39 |
-| | T9.3 幂等 | ⬜ | #40 |
+| | T9.3 幂等 | 🟡 | #40（Task 去重键与 claim/complete 已实现） |
 | | T9.4 密钥脱敏 | ✅ | #5 / PR #14 |
 
 > 说明：#6/#7/#8/#9 为里程碑级 epic，#16–#40 为拆细的具体任务，二者以"属于 #N"关联。
@@ -190,46 +190,61 @@ cancelled
 
 ## T2.1 NestJS Server
 
-> ⬜ 待办（#19，epic #6）
+> ✅ 已完成（#19 / epic #6，`apps/server/src`）
 >
-> **[TODO]** 模块列表含 `AuthModule`，但全套 tasks 无"用户管理 / 登录流程 / JWT 签发"的具体任务项，数据模型也缺 `users` 表（见 architecture.md §7 标注）。请补一个用户/认证实现任务，或明确 MVP 用单一静态 token 且不做 users。
+> **[已决策]** MVP 采用两个独立静态 token（`API_AUTH_TOKEN` 用于 Web，`RUNNER_TOKEN`
+> 用于 Runner），**不做 users 表、不做登录流程 / JWT**。AuthModule 因此只是两个
+> Guard；Runner token 以 `runners.token_hash` 落库，可单独撤销。
 
 模块：
 
-- [ ] AuthModule
-- [ ] ProjectsModule
-- [ ] TasksModule
-- [ ] RunsModule
-- [ ] RunnersModule
-- [ ] GitHubModule
-- [ ] EventsModule
+- [x] AuthModule（静态 token 双通道 Guard）
+- [x] ProjectsModule
+- [x] TasksModule
+- [x] RunsModule
+- [x] RunnersModule
+- [x] GitHubModule（仅 `GET /github/status`；webhook 路由随 #29 落地）
+- [x] EventsModule（SSE：先回放 DB 事件，再推送实时事件）
 
 ## T2.2 Prisma Schema
 
-> ⬜ 待办（#20）
+> ✅ 已完成（#20，`apps/server/prisma/schema.prisma` + 迁移 `20260829012328_init`）
 
 表：
 
-- [ ] projects
-- [ ] repositories
-- [ ] runners
-- [ ] runner_projects
-- [ ] tasks
-- [ ] task_runs
-- [ ] run_events
-- [ ] artifacts
-- [ ] approvals
+- [x] projects
+- [x] repositories
+- [x] runners（`token_hash` / `revoked` / `revoked_at`）
+- [x] runner_projects
+- [x] tasks（去重键：`source_ref` 与 `delivery_id` 唯一索引）
+- [x] task_runs（新增 `cancel_requested_at` 取消通道 + `created_at` / `updated_at`）
+- [x] run_events（`(run_id, seq)` 唯一）
+- [x] artifacts
+- [x] approvals
+- [x] users —— 明确不做（静态 token 决定）
 
 ## T2.3 Project CRUD
 
-> ⬜ 待办（#21；Runner Gateway 与取消通道见 #22）
+> ✅ 已完成（#21；Runner Gateway 与取消通道见 T2.4 / #22）
 
-- [ ] 创建项目
-- [ ] 修改项目
-- [ ] 删除项目
-- [ ] 配 default branch
-- [ ] 配 test command
-- [ ] 配 build command
+- [x] 创建项目
+- [x] 修改项目
+- [x] 删除项目（存在进行中的 Run 时拒绝，409）
+- [x] 配 default branch
+- [x] 配 test command
+- [x] 配 build command
+
+## T2.4 Runner Gateway 与取消通道
+
+> ✅ 已完成（#22，`apps/server/src/runner-gateway`）
+
+- [x] `POST /runner/register`（只存 token 哈希）
+- [x] `GET /runner/tasks/claim`（条件 UPDATE 原子领取，单 Runner 单任务）
+- [x] `POST /runner/runs/:id/events`（status 事件驱动状态机，payload 落库前脱敏）
+- [x] `POST /runner/runs/:id/heartbeat` → 返回 `cancelRequested`
+- [x] `POST /runner/runs/:id/complete`（终态 + artifacts）
+- [x] `POST /runner/heartbeat`（空闲心跳）
+- [x] 只允许领取"已映射且启用"的项目（architecture §14）
 
 ---
 
@@ -255,17 +270,18 @@ cancelled
 
 ## T3.2 Runner 注册
 
-> ⬜ 待办（#23）
+> 🟡 服务端接口已完成（#22 的 `POST /runner/register` / `POST /runner/heartbeat`）；Runner 侧循环待做（#23）
 
-- [ ] register
-- [ ] heartbeat
-- [ ] online/offline
-- [ ] version
-- [ ] platform
+- [x] register（服务端）
+- [x] heartbeat（服务端；`RUNNER_OFFLINE_TIMEOUT_MS` 判定 online/offline）
+- [x] online/offline
+- [x] version
+- [x] platform
+- [ ] Runner 侧定时注册 / 心跳循环（#23）
 
 ## T3.3 Runner Project Mapping
 
-> 🟡 部分完成（根包含校验已在 #5 完成；Runner 侧路径解析见 #24）
+> 🟡 部分完成（根包含校验已在 #5 完成；服务端映射接口 `PUT /runners/:id/projects/:projectId` 已在 #22 完成；Runner 侧路径解析见 #24）
 
 ```text
 server project id
@@ -276,17 +292,18 @@ local workspace path
 - [x] 路径存在检查
 - [x] Git Repo 检查
 - [x] root containment
+- [x] 服务端映射存储（`runner_projects.workspace_path`，未映射的项目不可领取）
 
 ## T3.4 Task Claim
 
 **标记：** `[参考 OpenTag: dispatcher]`
 
-> ✅ 领取核心已完成（#3 / PR #12，`packages/task-engine`）；Runner 侧主循环见 #24
+> ✅ 领取核心已完成（#3 / PR #12，`packages/task-engine`；服务端 DB 版原子领取见 #22）；Runner 侧主循环见 #24
 
 - [ ] Runner 主动 claim（需 Runner 主循环 #24）
 - [x] 单 Runner MVP
-- [x] 每次只执行一个任务
-- [x] claim 后原子更新 assigned（引擎已实现）
+- [x] 每次只执行一个任务（服务端在 claim 时强制）
+- [x] claim 后原子更新 assigned（引擎 + 服务端条件 UPDATE 均已实现）
 
 ---
 
@@ -587,12 +604,13 @@ required evidence satisfied
 
 ## T9.3 Idempotency
 
-> ⬜ 待办（#40）
+> 🟡 部分完成（#40：Task 去重键与 claim/complete 幂等已随 #22 落地；GitHub delivery 校验随 #29）
 
-- [ ] GitHub delivery
-- [ ] Task create
-- [ ] claim
-- [ ] complete
+- [x] GitHub delivery（`tasks.delivery_id` 唯一索引，重复投递返回既有 Task）
+- [x] Task create（`source_ref` 唯一索引 + `deduplicated` 标记）
+- [x] claim（条件 UPDATE，不会重复领取）
+- [x] complete（终态 Run 再次 complete 返回 409）
+- [ ] Webhook 层去重（需 #29 的验签与投递记录）
 
 ## T9.4 Secret Redaction
 

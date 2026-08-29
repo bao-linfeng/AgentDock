@@ -1,16 +1,35 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from './auth/auth.module.js';
+import { ConfigModule } from './config/config.module.js';
+import { EventsModule } from './events/events.module.js';
+import { GitHubModule } from './github/github.module.js';
 import { HealthController } from './health.controller.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { ProjectsModule } from './projects/projects.module.js';
+import { RunnerGatewayModule } from './runner-gateway/runner-gateway.module.js';
+import { RunnersModule } from './runners/runners.module.js';
+import { RunsModule } from './runs/runs.module.js';
+import { TasksModule } from './tasks/tasks.module.js';
 
 /**
- * Root module.
+ * Root module (docs/tasks.md T2.1).
  *
- * TODO(M2/T2.1): register AuthModule, ProjectsModule, TasksModule, RunsModule,
- * RunnersModule, GitHubModule, EventsModule as they are implemented.
- * Confirmed decision: MVP uses a single-user static token (no users table),
- * so AuthModule will be a thin token guard rather than a full user system.
+ * Auth is a thin static-token guard rather than a user system — confirmed MVP
+ * decision, so there is no `users` table (docs/architecture.md §7).
  */
 @Module({
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    AuthModule,
+    ProjectsModule,
+    TasksModule,
+    RunsModule,
+    RunnersModule,
+    RunnerGatewayModule,
+    GitHubModule,
+    EventsModule,
+  ],
   controllers: [HealthController],
-  providers: [],
 })
 export class AppModule {}
