@@ -146,6 +146,11 @@ opencode-remote/
 - TanStack Query
 - shadcn-vue 或 Element Plus
 
+> **[已实现 2026-08-29]** M7（#8/#32–#36）实际采用 TailwindCSS v4 + shadcn-vue
+> （见项目协作规则第 5/6 条）而非手写 CSS：`apps/web` 通过 `@tailwindcss/vite`
+> 接入 Tailwind，UI 原语组件用 shadcn-vue CLI 拷贝到 `src/components/ui/`；
+> Vue 3 / Vite / TypeScript / Pinia / TanStack Query 均按此表实现。
+
 ### apps/server
 
 - NestJS

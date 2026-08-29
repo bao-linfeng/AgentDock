@@ -1,0 +1,227 @@
+/* Mobile-first base styles for the AgentDock console. */
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+  --palette-bg: #0b0d12;
+  --palette-surface: #12151c;
+  --palette-surface-alt: #191d27;
+  --palette-border: #262b36;
+  --palette-text: #e6e8ee;
+  --palette-text-muted: #9399a8;
+  --palette-primary: #4f7cff;
+  --palette-primary-contrast: #ffffff;
+  --palette-danger: #e5484d;
+  --palette-warning: #e5a12c;
+  --palette-success: #34c98b;
+  --radius: 10px;
+  --nav-height: 60px;
+
+  /* Legacy aliases kept for existing hand-written CSS below. */
+  --color-bg: var(--palette-bg);
+  --color-surface: var(--palette-surface);
+  --color-surface-alt: var(--palette-surface-alt);
+  --color-border: var(--palette-border);
+  --color-text: var(--palette-text);
+  --color-text-muted: var(--palette-text-muted);
+  --color-primary: var(--palette-primary);
+  --color-primary-contrast: var(--palette-primary-contrast);
+  --color-danger: var(--palette-danger);
+  --color-warning: var(--palette-warning);
+  --color-success: var(--palette-success);
+
+  /* shadcn-vue semantic tokens, aligned to the palette above. */
+  --background: var(--palette-bg);
+  --foreground: var(--palette-text);
+  --card: var(--palette-surface);
+  --card-foreground: var(--palette-text);
+  --popover: var(--palette-surface);
+  --popover-foreground: var(--palette-text);
+  --primary: var(--palette-primary);
+  --primary-foreground: var(--palette-primary-contrast);
+  --secondary: var(--palette-surface-alt);
+  --secondary-foreground: var(--palette-text);
+  --muted: var(--palette-surface-alt);
+  --muted-foreground: var(--palette-text-muted);
+  --accent: var(--palette-surface-alt);
+  --accent-foreground: var(--palette-text);
+  --destructive: var(--palette-danger);
+  --destructive-foreground: var(--palette-primary-contrast);
+  --border: var(--palette-border);
+  --input: var(--palette-border);
+  --ring: var(--palette-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  min-height: 44px; /* touch target */
+}
+
+input,
+select,
+textarea {
+  min-height: 44px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1rem calc(var(--nav-height) + 1.5rem);
+}
+
+form.stack input,
+form.stack select,
+form.stack textarea {
+  width: 100%;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 2rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .page {
+    max-width: 960px;
+    padding: 2rem;
+  }
+}
