@@ -32,6 +32,13 @@ async function makeRepo(): Promise<string> {
   return dir;
 }
 
+/** Create a bare repo to use as a push target ("origin"). */
+async function makeBareRemote(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'agentdock-claimloop-remote-'));
+  await git(dir, ['init', '--quiet', '--bare', '-b', 'main']);
+  return dir;
+}
+
 function claimedWork(
   repo: string,
   overrides: Partial<{ testCommand: string; intent: 'fix' | 'general' }> = {},
@@ -255,5 +262,85 @@ describe('ClaimExecuteLoop.tick', () => {
 
     resolveRun?.();
     await firstTick;
+  });
+});
+
+describe('ClaimExecuteLoop push behavior', () => {
+  let repo: string;
+  let remote: string;
+
+  beforeEach(async () => {
+    repo = await makeRepo();
+    remote = await makeBareRemote();
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+  });
+
+  it('does not push when getPushConfig is absent (default commit-only behavior)', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const loop = new ClaimExecuteLoop({ client, pollIntervalMs: 1000, executor });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
+    expect(completion?.artifacts?.some((a) => a.metadata?.pushed)).toBe(false);
+  });
+
+  it('pushes the agent branch and records a pushed commit artifact when enabled', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      getPushConfig: () => ({ enabled: true, remote: 'origin', protectedBranches: [] }),
+    });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
+    const pushed = completion?.artifacts?.find((a) => a.metadata?.pushed === true);
+    expect(pushed).toBeDefined();
+    expect(pushed?.metadata?.remote).toBe('origin');
+
+    const branches = await execFileAsync('git', ['branch', '--list'], { cwd: remote });
+    expect(branches.stdout).toMatch(/agent\//);
+  });
+
+  it('logs and continues (without failing the run) when push has no remote configured', async () => {
+    // No `origin` configured on this repo at all.
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const logs: string[] = [];
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      getPushConfig: () => ({ enabled: true, remote: 'origin', protectedBranches: [] }),
+      onLog: (message) => logs.push(message),
+    });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
+    expect(logs.some((l) => l.includes('push skipped'))).toBe(true);
   });
 });

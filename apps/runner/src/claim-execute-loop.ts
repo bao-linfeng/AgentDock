@@ -8,6 +8,7 @@ import {
 } from '@agentdock/git-runtime';
 import { decideCompletion } from '@agentdock/governance';
 import type { RunArtifact, RunStatus } from '@agentdock/protocol';
+import type { PushConfig } from './config.js';
 import type { ClaimedWork, RunnerClient } from './runner-client.js';
 
 export interface ClaimExecuteLoopOptions {
@@ -19,6 +20,13 @@ export interface ClaimExecuteLoopOptions {
   executor: AgentExecutor;
   /** Commit message template; `{taskId}` / `{runId}` are substituted. */
   commitMessageTemplate?: string;
+  /**
+   * Looks up the local push configuration for a claimed project (keyed by the
+   * server project id — the same key as `RunnerConfig.projects`). Returns
+   * `undefined`/`{ enabled: false }` to keep the previous commit-only
+   * behavior (docs/tasks.md T5.4, #27).
+   */
+  getPushConfig?: (projectId: string) => PushConfig | undefined;
   onLog?: (message: string) => void;
   onError?: (error: unknown) => void;
   /** Test seam: overrides `setInterval`/`clearInterval`/`setTimeout`/`clearTimeout`. */
@@ -53,6 +61,7 @@ export class ClaimExecuteLoop {
   private readonly runHeartbeatIntervalMs: number;
   private readonly executor: AgentExecutor;
   private readonly commitMessageTemplate: string;
+  private readonly getPushConfig: (projectId: string) => PushConfig | undefined;
   private readonly onLog: (message: string) => void;
   private readonly onError: (error: unknown) => void;
   private readonly setIntervalImpl: typeof setInterval;
@@ -69,6 +78,7 @@ export class ClaimExecuteLoop {
       options.runHeartbeatIntervalMs ?? DEFAULT_RUN_HEARTBEAT_INTERVAL_MS;
     this.executor = options.executor;
     this.commitMessageTemplate = options.commitMessageTemplate ?? DEFAULT_COMMIT_MESSAGE_TEMPLATE;
+    this.getPushConfig = options.getPushConfig ?? (() => undefined);
     this.onLog = options.onLog ?? (() => {});
     this.onError = options.onError ?? (() => {});
     this.setIntervalImpl = options.setIntervalImpl ?? setInterval;
@@ -234,6 +244,36 @@ export class ClaimExecuteLoop {
           title: commitMessage,
           metadata: { sha, branch: worktree.branch },
         });
+
+        const pushConfig = this.getPushConfig(work.project.id);
+        if (pushConfig?.enabled) {
+          try {
+            const pushResult = await worktreeMgr.push(worktree, {
+              remote: pushConfig.remote,
+              protectedBranches: pushConfig.protectedBranches,
+            });
+            if (pushResult.pushed) {
+              artifacts.push({
+                type: 'commit',
+                title: `pushed ${pushResult.branch} to ${pushResult.remote}`,
+                metadata: {
+                  sha,
+                  branch: pushResult.branch,
+                  remote: pushResult.remote,
+                  pushed: true,
+                },
+              });
+            } else {
+              this.onLog(`push skipped: ${pushResult.reason ?? 'unknown reason'}`);
+            }
+          } catch (error) {
+            // A refused/failed push must not silently look like success — log
+            // it and let evidence rules (missing `pull_request`) surface the
+            // gap rather than throwing away the run's other artifacts.
+            this.onError(error);
+            this.onLog(`push failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
       }
 
       const decision = decideCompletion(work.task.intent, artifacts);
