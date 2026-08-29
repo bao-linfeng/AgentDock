@@ -371,6 +371,9 @@ pnpm dev
 
 打开浏览器访问 `http://localhost:5173`，用 `API_AUTH_TOKEN` 登录。开发环境下
 控制台会把 `/api/*` 代理到 Control Server(见 `apps/web/vite.config.ts`)。
+在「任务」页可以直接派发任务（「新建任务」表单，
+[#59](https://github.com/bao-linfeng/AgentDock/issues/59)）：选择项目与意图、
+填写 prompt 即可，已映射的 Runner 会在下一次 claim 轮询时领取。
 
 ---
 
@@ -423,9 +426,10 @@ pnpm dev
   - ✅ GitHub App / Installation 鉴权与仓库↔项目绑定 ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)，`apps/server/src/github`)
   - ✅ Webhook 验签与投递去重 ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
   - ✅ PR 创建 ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)，`apps/server/src/github/pull-request.service.ts`) · ✅ 回调评论 ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)，`apps/server/src/github/run-callback.service.ts`)
-- ✅ **Milestone 7 —— Web Dashboard 与移动端适配** *(已完成)* (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
+- ✅ **Milestone 7 —— Web Dashboard 与移动端适配** *(已完成)* (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36)、[#59](https://github.com/bao-linfeng/AgentDock/issues/59))
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
   - ✅ 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递已随 #29 打通；已迁移为 Tailwind v4 + shadcn-vue）
+  - ✅ 控制台内派发任务（[#59](https://github.com/bao-linfeng/AgentDock/issues/59)，`TasksView.vue` 的「新建任务」表单）
 - ✅ **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ✅ 审批模型 ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))：shell / push / 破坏性操作三类审批门，`needs_approval` 已贯通 Runner（`apps/runner/src/approval-gate.ts`）与 Web 端（`apps/server/src/approvals`、`apps/web/src/components/ApprovalPanel.vue`）
