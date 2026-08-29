@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { OpenCodeExecutor } from '@agentdock/agent-runtime';
 import { DEFAULT_HEARTBEAT_INTERVAL_MS } from '@agentdock/shared';
+import { RunnerApprovalGate } from './approval-gate.js';
 import { ClaimExecuteLoop } from './claim-execute-loop.js';
 import { type RunnerConfig, checkFilePermissions, loadConfig, validateProjects } from './config.js';
 import { HeartbeatLoop } from './heartbeat-loop.js';
@@ -88,12 +89,23 @@ async function main(): Promise<void> {
 
   console.log(`[runner] registered; heartbeat every ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms.`);
 
-  const executor = new OpenCodeExecutor();
+  const executor = new OpenCodeExecutor({
+    approvalGate: new RunnerApprovalGate({
+      client,
+      onLog: (message) => console.log(`[runner] ${message}`),
+    }),
+  });
+  const approvalGate = new RunnerApprovalGate({
+    client,
+    onLog: (message) => console.log(`[runner] ${message}`),
+  });
   const claimLoop = new ClaimExecuteLoop({
     client,
     pollIntervalMs: CLAIM_POLL_INTERVAL_MS,
     executor,
     getPushConfig: (projectId) => config.projects[projectId]?.push,
+    requestPushApproval: (runId, summary, detail) =>
+      approvalGate.requestPushApproval(runId, summary, detail),
     onLog: (message) => {
       console.log(`[runner] ${message}`);
     },

@@ -2,7 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RunArtifact, RunStatus, VerificationResult } from '@agentdock/protocol';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ApprovalGate } from './index.js';
 import { OpenCodeExecutor } from './index.js';
 import { createFakeOpenCodeAgent } from './test-support/fake-opencode-agent.js';
 
@@ -262,6 +263,126 @@ describe('OpenCodeExecutor.run', () => {
     expect(result.status).toBe('failed');
     expect(launched).toBe(false);
     expect(errors[0]?.code).toBe('not_ready');
+  });
+});
+
+describe('OpenCodeExecutor approval gate (docs/tasks.md T8.3, #37)', () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), 'agentdock-acp-'));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('denies by default when no approval gate is configured', async () => {
+    let observedOutcome: string | undefined;
+    const fake = createFakeOpenCodeAgent({
+      stopReason: 'end_turn',
+      requestPermission: {
+        toolCallTitle: 'Run `rm -rf build`',
+        onOutcome: (outcome) => {
+          observedOutcome = outcome.outcome;
+        },
+      },
+    });
+    const executor = new OpenCodeExecutor({ launch: () => fake.handle });
+    const { sink, logs } = createRecordingSink();
+
+    const result = await executor.run(
+      {
+        runId: 'run_1',
+        workspaceCwd: cwd,
+        prompt: 'clean the build dir',
+        context: [],
+        permissions: [],
+      },
+      sink,
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(observedOutcome).toBe('cancelled');
+    expect(logs.some((l) => l.includes('permission requested'))).toBe(true);
+    expect(logs.some((l) => l.includes('permission denied'))).toBe(true);
+  });
+
+  it('grants the request when the approval gate approves', async () => {
+    let observedOutcome: string | undefined;
+    const fake = createFakeOpenCodeAgent({
+      stopReason: 'end_turn',
+      requestPermission: {
+        toolCallTitle: 'Run `pnpm build`',
+        onOutcome: (outcome) => {
+          observedOutcome = outcome.outcome;
+        },
+      },
+    });
+    const gate: ApprovalGate = {
+      requestShellApproval: async () => 'approved',
+    };
+    const executor = new OpenCodeExecutor({ launch: () => fake.handle, approvalGate: gate });
+    const { sink, logs } = createRecordingSink();
+
+    await executor.run(
+      {
+        runId: 'run_1',
+        workspaceCwd: cwd,
+        prompt: 'build the project',
+        context: [],
+        permissions: [],
+      },
+      sink,
+    );
+
+    expect(observedOutcome).toBe('selected');
+    expect(logs.some((l) => l.includes('permission approved'))).toBe(true);
+  });
+
+  it('passes the runId and a human-readable summary to the approval gate', async () => {
+    const fake = createFakeOpenCodeAgent({
+      stopReason: 'end_turn',
+      requestPermission: { toolCallTitle: 'Run `git push --force`' },
+    });
+    const requestShellApproval = vi.fn().mockResolvedValue('denied' as const);
+    const executor = new OpenCodeExecutor({
+      launch: () => fake.handle,
+      approvalGate: { requestShellApproval },
+    });
+    const { sink } = createRecordingSink();
+
+    await executor.run(
+      { runId: 'run_42', workspaceCwd: cwd, prompt: 'push it', context: [], permissions: [] },
+      sink,
+    );
+
+    expect(requestShellApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ runId: 'run_42', summary: 'Run `git push --force`' }),
+    );
+  });
+
+  it('denies (rather than throwing) when the approval gate itself throws', async () => {
+    const fake = createFakeOpenCodeAgent({
+      stopReason: 'end_turn',
+      requestPermission: { toolCallTitle: 'Run something risky' },
+    });
+    const executor = new OpenCodeExecutor({
+      launch: () => fake.handle,
+      approvalGate: {
+        requestShellApproval: async () => {
+          throw new Error('server unreachable');
+        },
+      },
+    });
+    const { sink } = createRecordingSink();
+
+    const result = await executor.run(
+      { runId: 'run_1', workspaceCwd: cwd, prompt: 'try it', context: [], permissions: [] },
+      sink,
+    );
+
+    expect(result.status).toBe('succeeded');
   });
 });
 

@@ -9,7 +9,8 @@
       "push": {
         "enabled": false,
         "remote": "origin",
-        "protectedBranches": []
+        "protectedBranches": [],
+        "requireApproval": false
       }
     }
   }

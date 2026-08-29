@@ -192,14 +192,18 @@
 
 ```text
 queued ──▶ assigned ──▶ running ──▶ verifying ──▶ publishing ──▶ succeeded
-                          │
-                          ├──▶ needs_approval
+                          │              │
+                          ├──▶ needs_approval（可重入：running / verifying / publishing）
                           ├──▶ failed
                           └──▶ cancelled
 ```
 
 在核心状态之上额外增加 `verifying` 与 `publishing`，方便 UI 清晰展示
-测试 → Commit → Push → PR 各阶段。
+测试 → Commit → Push → PR 各阶段。`needs_approval` 是一个可重入的侧支状态
+（docs/tasks.md T8.3，[#37](https://github.com/bao-linfeng/AgentDock/issues/37)）：
+`running` 或 `publishing` 遇到高风险操作（shell 工具调用 / push / 标记为破坏性
+的操作）需要人工决策时会转入该状态，决议后回到发起请求的状态继续，不会绕过
+中间阶段直达 `succeeded`。
 
 ### 核心协议数据模型
 
@@ -422,9 +426,9 @@ pnpm dev
 - ✅ **Milestone 7 —— Web Dashboard 与移动端适配** *(已完成)* (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
   - ✅ 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递已随 #29 打通；已迁移为 Tailwind v4 + shadcn-vue）
-- 🟡 **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
+- ✅ **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
-  - ⬜ 审批模型(第二阶段)
+  - ✅ 审批模型 ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))：shell / push / 破坏性操作三类审批门，`needs_approval` 已贯通 Runner（`apps/runner/src/approval-gate.ts`）与 Web 端（`apps/server/src/approvals`、`apps/web/src/components/ApprovalPanel.vue`）
 - ✅ **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ 幂等:Task 去重键、原子 claim、complete 守卫 ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))

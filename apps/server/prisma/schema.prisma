@@ -214,16 +214,40 @@ model Artifact {
   @@map("artifacts")
 }
 
+// Approval action/status enums mirror @agentdock/protocol's ApprovalActionSchema
+// / ApprovalStatusSchema (docs/tasks.md T8.3, #37).
+enum ApprovalAction {
+  shell
+  push
+  destructive
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  denied
+}
+
 model Approval {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   runId       String
-  action      String
-  status      String    @default("pending")
-  requestedAt DateTime  @default(now())
+  action      ApprovalAction
+  status      ApprovalStatus @default(pending)
+  // Human-readable summary of the gated action (e.g. the shell command or
+  // "push agent/task-1-fix to origin"), shown as-is in the Web approval panel.
+  summary     String?        @db.Text
+  // Free-form structured detail (e.g. ACP tool call payload); redacted via
+  // the same redactSecrets() pass as run-event payloads before it is stored.
+  detailJson  Json?
+  requestedAt DateTime       @default(now())
   resolvedAt  DateTime?
+  // Free-form identity string for the audit trail — no user system in MVP
+  // (architecture.md §7 decision), so this is not a foreign key.
+  resolvedBy  String?
 
   run TaskRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+  @@index([status])
   @@map("approvals")
 }

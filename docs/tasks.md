@@ -43,7 +43,7 @@
 | | T7.5 Mobile UX | ✅ | #36 |
 | M8 Governance | T8.1 证据引擎 | ✅ | #4 / PR #13 |
 | | T8.2 完成判定 | ✅ | #4 / PR #13 |
-| | T8.3 审批模型 | ⬜ | #37 |
+| | T8.3 审批模型 | ✅ | #37 |
 | M9 稳定性 | T9.1 Runner 断连 | ✅ | #38（epic #9） |
 | | T9.2 重试 | ✅ | #39 |
 | | T9.3 幂等 | ✅ | #40 |
@@ -746,13 +746,49 @@ required evidence satisfied
 
 ## T8.3 Approval Model
 
-> ⬜ 待办（#37）
+> ✅ 已完成（#37）
+>
+> **审批动作三类**（`@agentdock/protocol` 的 `ApprovalActionSchema`）：
+> - `shell`：ACP `session/request_permission`（OpenCode 请求执行 shell / 工具调用）——
+>   拦截点在 `packages/agent-runtime/src/index.ts` 的 `registerClientHandlers`，
+>   通过注入的 `ApprovalGate.requestShellApproval` 决议；未配置 gate 时默认
+>   `DenyingApprovalGate` 拒绝（保留 #37 之前"拒绝优先"的安全默认值）。
+> - `push`：`apps/runner/src/claim-execute-loop.ts` 在调用
+>   `WorktreeManager.push()` 前，若项目 `push.requireApproval` 为 true，则先
+>   请求审批（Run 短暂转入 `needs_approval`，通过后转回 `publishing` 再推送）。
+> - `destructive`：复用同一套 `Approval` 模型/API，供后续标记为不可逆的操作
+>   （如强制推送、删除分支）接入，`RunnerApprovalGate.requestDestructiveApproval`
+>   已提供但当前无调用方，留作扩展点。
+>
+> **Runner 无入站通道**（architecture §9），审批决议因此复用取消信号的下发方式：
+> `POST /runner/runs/:id/approvals` 创建 pending `Approval` 并把 Run 转入
+> `needs_approval`；随后轮询 `POST /runner/runs/:id/heartbeat`，其响应体新增的
+> `approval` 字段带回最新状态。`apps/runner/src/approval-gate.ts` 的
+> `RunnerApprovalGate` 封装了这套"请求 + 轮询"逻辑，默认超时 24h 未决议按拒绝
+> 处理，避免 Run 无限期挂起。
+>
+> Web 端（`apps/server/src/approvals`）：`GET /approvals/pending`、
+> `GET /runs/:runId/approvals`、`GET /approvals/:id`、
+> `POST /approvals/:id/resolve`（`{ decision: 'approved' | 'denied', resolvedBy? }`）。
+> 每次请求/决议都会在该 Run 的 `run_events` 追加一条 `type: 'approval'` 事件，
+> 复用现有 SSE 通道（`GET /events/runs/:id`）实时推送给 Web，无需新增总线。
+>
+> 状态机（`@agentdock/protocol/status.ts`）扩展：`publishing` 新增
+> `needs_approval` 分支（原先只能到 `succeeded`），审批通过/拒绝后回到
+> `publishing` 继续或经 `failed`/`cancelled` 终止 —— 不会绕过
+> `verifying → publishing` 直达 `succeeded`（architecture §8）。
+>
+> Prisma `Approval` model 新增 `summary` / `detailJson`（经 `redactSecrets`
+> 脱敏，"Secret 不写 RunEvent" architecture §14 同样适用）/ `resolvedBy`
+> 字段，`action`/`status` 改为枚举（迁移
+> `20260830010000_t8_3_approval_model`）。
 
 第二阶段：
 
-- [ ] shell approval
-- [ ] push approval
-- [ ] destructive operation approval
+- [x] shell approval
+- [x] push approval
+- [x] destructive operation approval（模型/API 已就位，暂无内部调用方触发）
+- [x] `needs_approval` 运行状态贯通 UI + Runner
 
 ---
 

@@ -21,6 +21,15 @@ export interface FakeAgentScript {
   delayMs?: number;
   /** Called with the raw prompt content blocks received by `session/prompt`. */
   onPrompt?: (prompt: acp.ContentBlock[]) => void;
+  /**
+   * If set, the agent calls `session/request_permission` before responding
+   * to the prompt, and this callback observes the outcome the client (test
+   * subject) returned.
+   */
+  requestPermission?: {
+    toolCallTitle: string;
+    onOutcome?: (outcome: acp.RequestPermissionOutcome) => void;
+  };
 }
 
 export interface FakeAgentHandle {
@@ -69,6 +78,21 @@ export function createFakeOpenCodeAgent(script: FakeAgentScript = {}): FakeAgent
           sessionId: params.sessionId,
           update,
         });
+      }
+
+      if (script.requestPermission) {
+        const outcome = await client.request(acp.CLIENT_METHODS.session_request_permission, {
+          sessionId: params.sessionId,
+          toolCall: {
+            toolCallId: 'permission-tool',
+            title: script.requestPermission.toolCallTitle,
+          },
+          options: [
+            { kind: 'allow_once' as const, name: 'Allow once', optionId: 'allow' },
+            { kind: 'reject_once' as const, name: 'Reject once', optionId: 'reject' },
+          ],
+        });
+        script.requestPermission.onOutcome?.(outcome.outcome);
       }
 
       if (cancelled) {

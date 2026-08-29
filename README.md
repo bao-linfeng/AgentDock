@@ -208,14 +208,18 @@ stay on your local machine.
 
 ```text
 queued ──▶ assigned ──▶ running ──▶ verifying ──▶ publishing ──▶ succeeded
-                          │
-                          ├──▶ needs_approval
+                          │              │
+                          ├──▶ needs_approval (re-entrant: running / verifying / publishing)
                           ├──▶ failed
                           └──▶ cancelled
 ```
 
 `verifying` and `publishing` are added on top of the core states to let the UI
-clearly show the test → commit → push → PR phases.
+clearly show the test → commit → push → PR phases. `needs_approval` is a
+re-entrant side-branch (docs/tasks.md T8.3, [#37](https://github.com/bao-linfeng/AgentDock/issues/37)):
+`running` or `publishing` can step into it when a high-risk action (shell tool
+call / push / a destructive operation) needs a human decision, then return to
+whichever state requested it — it never shortcuts straight to `succeeded`.
 
 ### Core Protocol Models
 
@@ -449,9 +453,9 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - ✅ **Milestone 7 — Web Dashboard & mobile UX** *(done)* (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
   - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29; Tailwind v4 + shadcn-vue UI)
-- 🟡 **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
+- ✅ **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
-  - ⬜ Approval model (phase 2)
+  - ✅ Approval model ([#37](https://github.com/bao-linfeng/AgentDock/issues/37)): shell / push / destructive-operation approval gates, `needs_approval` wired end to end through the Runner (`apps/runner/src/approval-gate.ts`) and Web console (`apps/server/src/approvals`, `apps/web/src/components/ApprovalPanel.vue`)
 - ✅ **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ Idempotency: task dedupe keys, atomic claim, guarded complete ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
