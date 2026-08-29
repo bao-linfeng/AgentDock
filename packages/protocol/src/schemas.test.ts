@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ApprovalActionSchema, ApprovalSchema, ApprovalStatusSchema } from './schemas.js';
+import {
+  ApprovalActionSchema,
+  ApprovalSchema,
+  ApprovalStatusSchema,
+  CallbackRouteSchema,
+  callbackRouteFrom,
+} from './schemas.js';
 
 describe('ApprovalSchema', () => {
   it('accepts the three approval actions', () => {
@@ -52,5 +58,54 @@ describe('ApprovalSchema', () => {
         requestedAt: new Date().toISOString(),
       }),
     ).toThrow();
+  });
+});
+
+describe('CallbackRouteSchema', () => {
+  it('parses an issue thread with defaults applied', () => {
+    const route = CallbackRouteSchema.parse({ repo: 'acme/widgets', issueNumber: 7 });
+    expect(route).toEqual({
+      provider: 'github',
+      repo: 'acme/widgets',
+      issueNumber: 7,
+      isPullRequest: false,
+    });
+  });
+
+  it('rejects a repo that is not `owner/repo`', () => {
+    expect(() => CallbackRouteSchema.parse({ repo: 'widgets', issueNumber: 7 })).toThrow();
+    expect(() =>
+      CallbackRouteSchema.parse({ repo: 'acme/widgets/extra', issueNumber: 7 }),
+    ).toThrow();
+  });
+
+  it('rejects a non-positive issue number', () => {
+    expect(() => CallbackRouteSchema.parse({ repo: 'acme/widgets', issueNumber: 0 })).toThrow();
+  });
+});
+
+describe('callbackRouteFrom', () => {
+  it('returns null for a task without a callback target (source: web)', () => {
+    expect(callbackRouteFrom({})).toBeNull();
+    expect(callbackRouteFrom({ callbackRepo: null, callbackIssueNumber: null })).toBeNull();
+  });
+
+  it('builds a route from the flat task columns', () => {
+    expect(
+      callbackRouteFrom({
+        callbackRepo: 'acme/widgets',
+        callbackIssueNumber: 12,
+        callbackIsPullRequest: true,
+      }),
+    ).toEqual({
+      provider: 'github',
+      repo: 'acme/widgets',
+      issueNumber: 12,
+      isPullRequest: true,
+    });
+  });
+
+  it('returns null when stored values are malformed rather than throwing', () => {
+    expect(callbackRouteFrom({ callbackRepo: 'nonsense', callbackIssueNumber: 12 })).toBeNull();
   });
 });

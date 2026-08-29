@@ -431,9 +431,9 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 
 - ✅ **Milestone 0 — Technical validation & protocol definition** *(done)* ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
   - ✅ OpenCode ACP smoke test ([#16](https://github.com/bao-linfeng/AgentDock/issues/16), `packages/agent-runtime/src/smoke/opencode-acp-smoke.ts`) · ✅ OMO Slim compatibility spike ([#17](https://github.com/bao-linfeng/AgentDock/issues/17), `packages/agent-runtime/src/smoke/omo-slim-acp-smoke.ts` — result: `compatible_with_limitations`, see [`docs/research/omo-slim-acp-compat-notes.md`](./docs/research/omo-slim-acp-compat-notes.md)) · ✅ OpenTag runner code reading ([#18](https://github.com/bao-linfeng/AgentDock/issues/18), see [`docs/research/opentag-runner-notes.md`](./docs/research/opentag-runner-notes.md))
-- 🟡 **Milestone 1 — Monorepo & Protocol package** *(done)*
+- ✅ **Milestone 1 — Monorepo & Protocol package** *(done)*
   - ✅ pnpm workspace scaffolding
-  - ✅ `@agentdock/protocol` Zod schemas & Run status state machine (`CallbackRoute` / JSON Schema export still pending)
+  - ✅ `@agentdock/protocol` Zod schemas & Run status state machine, including `CallbackRoute` and JSON Schema export ([#62](https://github.com/bao-linfeng/AgentDock/issues/62))
 - ✅ **Milestone 2 — Control Server foundation** *(done)* (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6): [#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
   - ✅ NestJS modules (Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
   - ✅ Prisma schema & MySQL migration · Project CRUD

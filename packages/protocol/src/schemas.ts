@@ -18,6 +18,50 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export const RunStatusSchema = z.enum(RUN_STATUSES);
 
 /**
+ * Where a run's status updates are posted back to — the thread that triggered
+ * the task (docs/tasks.md T1.2 / T6.6, #62 / #31).
+ *
+ * Persisted flat on the task (`callbackRepo` / `callbackIssueNumber` /
+ * `callbackIsPullRequest`); this schema is the protocol-level representation
+ * shared by the GitHub adapter (which produces it during normalization) and
+ * the Control Server (which consumes it when posting comments). `source: 'web'`
+ * tasks have no callback route.
+ */
+export const CallbackRouteSchema = z.object({
+  provider: z.literal('github').default('github'),
+  /** `owner/repo` of the repository the triggering thread lives in. */
+  repo: z
+    .string()
+    .trim()
+    .regex(/^[^/\s]+\/[^/\s]+$/, 'repo must be in `owner/repo` form'),
+  /** Issue or Pull Request number of the thread to reply to. */
+  issueNumber: z.number().int().positive(),
+  /** True when the thread is a Pull Request rather than an Issue. */
+  isPullRequest: z.boolean().default(false),
+});
+export type CallbackRoute = z.infer<typeof CallbackRouteSchema>;
+
+/**
+ * Build a `CallbackRoute` from the flat columns stored on a task. Returns
+ * `null` when the task has no callback target (e.g. `source: 'web'`) or the
+ * stored values do not validate.
+ */
+export function callbackRouteFrom(input: {
+  callbackRepo?: string | null;
+  callbackIssueNumber?: number | null;
+  callbackIsPullRequest?: boolean | null;
+}): CallbackRoute | null {
+  if (!input.callbackRepo || input.callbackIssueNumber === null) return null;
+  const parsed = CallbackRouteSchema.safeParse({
+    provider: 'github',
+    repo: input.callbackRepo,
+    issueNumber: input.callbackIssueNumber,
+    isPullRequest: input.callbackIsPullRequest ?? false,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/**
  * A single piece of objective evidence a run can produce
  * (docs/requirements.md §9, docs/tasks.md T8.1). Lives in the protocol package
  * because evidence rules travel over the wire: the Control Server hands a
