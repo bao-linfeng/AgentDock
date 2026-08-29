@@ -3,7 +3,25 @@
 
 export type TaskSource = 'web' | 'github';
 export type TaskIntent = 'fix' | 'implement' | 'review' | 'test' | 'general';
-export type TaskStatus =
+
+/**
+ * Coarse task-level status — mirrors `TaskStatusSchema` in @agentdock/protocol.
+ * The detailed 9-state lifecycle lives on runs (`RunStatus`); a task's status is
+ * derived from its latest run. Filtering `GET /tasks?status=` only accepts these
+ * five values.
+ */
+export type TaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export const TASK_STATUSES: TaskStatus[] = [
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+];
+
+/** Run-level lifecycle vocabulary (docs/architecture.md §8). */
+export type RunStatus =
   | 'queued'
   | 'assigned'
   | 'running'
@@ -13,8 +31,6 @@ export type TaskStatus =
   | 'succeeded'
   | 'failed'
   | 'cancelled';
-
-export type RunStatus = TaskStatus; // same 9-state vocabulary (docs/architecture.md §8)
 
 export const ACTIVE_RUN_STATUSES: RunStatus[] = [
   'queued',
@@ -151,6 +167,8 @@ export interface CreateTaskResult {
   run?: RunDto;
   deduplicated: boolean;
 }
+
+export const TASK_INTENTS: TaskIntent[] = ['fix', 'implement', 'review', 'test', 'general'];
 
 export interface ListTasksQuery {
   projectId?: string;

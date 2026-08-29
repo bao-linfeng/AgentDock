@@ -41,6 +41,7 @@
 | | T7.3 Task List | ✅ | #34 |
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
+| | T7.6 新建任务表单（Web 派发） | ✅ | #59 |
 | M8 Governance | T8.1 证据引擎 | ✅ | #4 / PR #13 |
 | | T8.2 完成判定 | ✅ | #4 / PR #13 |
 | | T8.3 审批模型 | ✅ | #37 |
@@ -728,6 +729,31 @@ Tabs / Sections：
 - [x] Cancel 按钮可达（详情页顶部操作区）
 - [x] PR 一键打开（详情页顶部 + Artifacts 分区）
 - [x] Long logs 折叠（`LogViewer.vue`，超过 12 行默认折叠）
+
+## T7.6 新建任务表单（Web 派发 Task）
+
+> ✅ 已完成（#59，`apps/web/src/views/TasksView.vue` + `apps/web/src/lib/task-form.ts`）
+>
+> 补齐 requirements.md §3.1 的必做项「Web 创建 Task」/ US-01：此前
+> `tasksApi.create` 已存在但没有任何视图调用，派发任务只能靠 GitHub `@agent`
+> 评论或手动 `POST /tasks`。现在任务列表页顶部提供「新建任务」按钮，弹出
+> shadcn-vue `Dialog` 表单（项目 `Select` + 意图 `Select` + prompt `Textarea`），
+> 提交后跳转到该任务详情页；命中去重（`deduplicated`）时给出提示。校验与
+> payload 构造抽到纯函数 `buildCreateTaskPayload`（`apps/web/src/lib/task-form.ts`）
+> 以便在 node-only 的 vitest 环境下单测。
+>
+> 同时修正了任务列表状态过滤的一个缺陷：前端 `TaskStatus` 原先被定义为 Run 的
+> 9 状态词汇，过滤下拉里的 `assigned` / `needs_approval` / `verifying` /
+> `publishing` 会被服务端 `ListTasksQuerySchema`（`TaskStatusSchema`，仅 5 个
+> 粗粒度状态）拒绝为 400。现在 `TaskStatus` 与协议对齐为 5 值，`RunStatus`
+> 单独定义为 9 值。`TasksView.vue` 一并按项目规则第 5/6 条迁移为 Tailwind
+> utility class + shadcn-vue 组件。
+
+- [x] 选择 project / intent，填写 prompt
+- [x] 表单校验与错误提示（含服务端 `ApiError` 消息）
+- [x] 去重提示
+- [x] 提交后跳转任务详情
+- [x] 移动端 44px 触控目标
 
 ---
 
