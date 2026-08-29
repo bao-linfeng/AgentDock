@@ -21,14 +21,15 @@
 
 ---
 
-> [!WARNING]
-> **项目状态:早期规划阶段 / pre-alpha —— 代码尚未实现。**
+> [!NOTE]
+> **项目状态:早期开发中 —— 已有可构建的基础，MVP 推进中。**
 >
-> AgentDock 目前处于 **设计与规范** 阶段。本仓库包含 [`docs/`](./docs) 下的架构、
-> 需求与任务分解文档，以及空的脚手架目录(`apps/`、`packages/`)。
-> **目前尚无任何源码、`package.json` 或可运行的构建。** 下文
-> [快速开始](#-快速开始规划中) 描述的是 *规划中* 的使用方式，在对应里程碑实现之前
-> 无法运行。当前进度请见 [路线图](#-里程碑与路线图)。
+> Monorepo 脚手架已就绪，多个基础包已实现并有单元测试:protocol Schema 与
+> Run 状态机、Git Worktree 运行时、GitHub 事件归一化、任务队列引擎、证据治理，
+> 以及 Runner 配置/密钥脱敏。端到端产品(NestJS Control Server、OpenCode ACP
+> 执行器、Web 控制台)**尚未构建** —— 下文 [快速开始](#-快速开始规划中) 描述的是
+> *规划中* 的体验。进度与 issue 对照见 [`docs/tasks.md`](./docs/tasks.md) 与
+> [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues)。
 
 ---
 
@@ -64,7 +65,7 @@
 ## ✨ 核心特性
 
 > 以下描述的是 **目标** 能力。当前实现进度请见 [路线图](#-里程碑与路线图)
-> (目前:仅规划阶段)。
+> (基础包已构建并测试，端到端闭环推进中)。
 
 - 🔒 **本地优先与零入站端口暴露** —— Windows/macOS/Linux 本地 Runner 主动轮询或
   与云端 Control Server 保持出站长连接，内网与企业网络环境无缝运行。
@@ -185,8 +186,8 @@ queued ──▶ assigned ──▶ running ──▶ verifying ──▶ publis
 
 ## 📁 目录结构
 
-> **规划中** 的 Monorepo 结构(基于 pnpm workspace)。当前多数目录仅为空脚手架，
-> 详见 [项目状态](#-项目简介)。
+> **规划中** 的 Monorepo 结构(基于 pnpm workspace)。`packages/` 下的基础包已实现
+> 并测试;`apps/` 仍为脚手架，详见 [项目状态](#-项目简介)。
 
 ```text
 AgentDock/
@@ -330,37 +331,37 @@ pnpm dev
 
 ## 🗺️ 里程碑与路线图
 
-里程碑与进度记录在 [`docs/tasks.md`](./docs/tasks.md)。
-当前进度:**Milestone 0(技术预研)进行中，其余均未启动。**
+里程碑与进度记录在 [`docs/tasks.md`](./docs/tasks.md)，含完整的"任务 ↔ issue"对照表。
+图例:✅ 已完成 · 🟡 部分完成 · ⬜ 待办。基础包(#1–#5)已合并，接下来是端到端闭环。
 
-- [ ] **Milestone 0 —— 技术验证与协议定义** *(进行中)*
-  - OpenCode ACP Smoke Test
-  - oh-my-opencode-slim(OMO Slim)兼容性验证
-  - OpenTag Runner 代码研读
-- [ ] **Milestone 1 —— Monorepo 与 Protocol 包**
-  - pnpm workspace 脚手架
-  - `@agentdock/protocol` Zod Schema 与 Run 状态机
-- [ ] **Milestone 2 —— Control Server 基础**
-  - NestJS 模块(Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
-  - Prisma Schema 与 MySQL 数据模型;Project CRUD
-- [ ] **Milestone 3 —— Local Runner**
-  - Runner 配置、注册、心跳、Project 映射
-  - 主动 Task Claim(单 Runner，每次一个任务)
-- [ ] **Milestone 4 —— Agent Runtime**
-  - `AgentExecutor` 接口;OpenCode ACP Executor
-  - ACP → ExecutorEvent → RunEvent 事件桥接
-- [ ] **Milestone 5 —— Git Runtime**
-  - Worktree 管理、变更检测、验证(测试命令)
-  - Commit / Push(禁止直接 push 默认分支)
-- [ ] **Milestone 6 —— GitHub 集成**
-  - Webhook 验签与去重、事件归一化、`@agent` Mention 触发
-  - PR 创建与回调评论
-- [ ] **Milestone 7 —— Web Dashboard 与移动端适配**
-  - Dashboard、项目、任务列表、任务详情(Timeline / 日志 / Diff / 测试 / 产物)
-- [ ] **Milestone 8 —— 治理(Governance)**
-  - Evidence 校验引擎与基于证据的完成判定;审批模型(第二阶段)
-- [ ] **Milestone 9 —— 稳定性**
-  - 断线重连处理、重试、幂等、敏感信息脱敏
+- ⬜ **Milestone 0 —— 技术验证与协议定义** ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
+  - OpenCode ACP Smoke Test · OMO Slim 兼容性 · OpenTag Runner 代码研读
+- 🟡 **Milestone 1 —— Monorepo 与 Protocol 包** *(已完成)*
+  - ✅ pnpm workspace 脚手架
+  - ✅ `@agentdock/protocol` Zod Schema 与 Run 状态机(`CallbackRoute` / JSON Schema 导出待补)
+- ⬜ **Milestone 2 —— Control Server 基础** (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6):[#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
+  - NestJS 模块 · Prisma Schema 与 MySQL 模型 · Project CRUD · Runner 网关 + 取消通道
+- 🟡 **Milestone 3 —— Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
+  - ✅ Runner 配置安全与密钥处理 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ✅ 任务领取引擎核心 ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
+  - ⬜ 注册/心跳 · 领取→执行主循环
+- 🟡 **Milestone 4 —— Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7):[#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
+  - ✅ `AgentExecutor` 接口
+  - ⬜ OpenCode ACP Executor · ACP → RunEvent 桥接
+- 🟡 **Milestone 5 —— Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+  - ✅ Worktree 管理、变更检测、验证 ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
+  - ⬜ Commit / Push(禁止直接 push 默认分支)
+- 🟡 **Milestone 6 —— GitHub 集成** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+  - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
+  - ⬜ Webhook 验签与去重 · PR 创建 · 回调评论
+- ⬜ **Milestone 7 —— Web Dashboard 与移动端适配** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
+  - Dashboard、项目、任务列表、任务详情、移动端体验
+- 🟡 **Milestone 8 —— 治理(Governance)** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
+  - ✅ Evidence 校验引擎与基于证据的完成判定 ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
+  - ⬜ 审批模型(第二阶段)
+- 🟡 **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ⬜ 断线重连处理 · 重试 · 幂等
 
 ### 明确不做(在单机 OpenCode + GitHub 闭环跑通之前)
 
@@ -372,8 +373,11 @@ Slack / 飞书 / Telegram · Claude / Codex / PI Executor · 多租户 ·
 
 ## 🤝 参与贡献
 
-AgentDock 目前处于早期规划阶段。当前最好的贡献方式是阅读 [`docs/`](./docs)
-下的设计文档，并就需求、架构或任务分解提出反馈 Issue。
+AgentDock 处于早期开发阶段 —— 基础包已构建，端到端闭环正在拼装。当前的贡献方式:
+
+- 认领一个开放 [issue](https://github.com/bao-linfeng/AgentDock/issues)(参见
+  [`docs/tasks.md`](./docs/tasks.md) 中的"任务 ↔ issue"对照表)。
+- 阅读 [`docs/`](./docs) 下的设计文档，就需求、架构或任务分解提出反馈。
 
 - [`docs/requirements.md`](./docs/requirements.md) —— 项目目标、MVP 范围、数据模型、安全要求
 - [`docs/architecture.md`](./docs/architecture.md) —— 系统边界、技术栈、协议、数据库、工作流

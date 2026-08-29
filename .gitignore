@@ -30,5 +30,8 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Kiro local (keep steering tracked, ignore local settings)
+.kiro/settings/
+
 # Test / coverage
 coverage/

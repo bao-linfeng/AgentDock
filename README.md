@@ -21,16 +21,18 @@
 
 ---
 
-> [!WARNING]
-> **Project Status: Early planning / pre-alpha — no runnable code yet.**
+> [!NOTE]
+> **Project Status: early development — buildable foundation, MVP in progress.**
 >
-> AgentDock is currently in the **design and specification** phase. This repository
-> contains architecture, requirements, and task-breakdown documents under
-> [`docs/`](./docs), plus empty scaffolding directories (`apps/`, `packages/`).
-> **There is no source code, `package.json`, or runnable build yet.** The
-> [Getting Started](#-getting-started-planned) section below describes the
-> *planned* usage and will not work until the corresponding milestones are
-> implemented. See the [Roadmap](#-roadmap) for current progress.
+> The monorepo scaffolding is in place and several foundation packages are
+> implemented and unit-tested: protocol schemas & run-status state machine,
+> Git worktree runtime, GitHub event normalizer, task-queue engine, evidence
+> governance, and runner config/secret-redaction. The end-to-end product
+> (NestJS Control Server, OpenCode ACP executor, Web console) is **not built
+> yet** — the [Getting Started](#-getting-started-planned) steps describe the
+> *planned* experience. Progress and the issue mapping are tracked in
+> [`docs/tasks.md`](./docs/tasks.md) and the
+> [GitHub issues](https://github.com/bao-linfeng/AgentDock/issues).
 
 ---
 
@@ -73,7 +75,8 @@ stay on your local machine.
 ## ✨ Features
 
 > The following describe the **target** capabilities. See the
-> [Roadmap](#-roadmap) for what is implemented today (currently: planning only).
+> [Roadmap](#-roadmap) for what is implemented today (foundation packages built
+> and tested; end-to-end loop in progress).
 
 - 🔒 **Local-first, zero inbound ports** — A local Runner on Windows/macOS/Linux
   actively polls or holds an outbound connection to the cloud Control Server.
@@ -200,8 +203,9 @@ The system normalizes every entry point into these models (see
 
 ## 📁 Project Structure
 
-> **Planned** Monorepo layout (pnpm workspace). Most directories are currently
-> empty scaffolding — see [Project Status](#-overview).
+> **Planned** Monorepo layout (pnpm workspace). Foundation packages under
+> `packages/` are implemented and tested; `apps/` are still scaffolds — see
+> [Project Status](#-overview).
 
 ```text
 AgentDock/
@@ -347,38 +351,38 @@ Then open `http://localhost:5173`.
 
 ## 🗺️ Roadmap
 
-Milestones and progress are tracked in [`docs/tasks.md`](./docs/tasks.md).
-Current progress: **Milestone 0 (technical spikes) in progress; everything else
-not started.**
+Milestones and progress are tracked in [`docs/tasks.md`](./docs/tasks.md), with a
+full task ↔ issue cross-reference table. Legend: ✅ done · 🟡 partial · ⬜ todo.
+Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 
-- [ ] **Milestone 0 — Technical validation & protocol definition** *(in progress)*
-  - OpenCode ACP smoke test
-  - oh-my-opencode-slim (OMO Slim) compatibility spike
-  - OpenTag runner code reading
-- [ ] **Milestone 1 — Monorepo & Protocol package**
-  - pnpm workspace scaffolding
-  - `@agentdock/protocol` Zod schemas & Run status state machine
-- [ ] **Milestone 2 — Control Server foundation**
-  - NestJS modules (Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
-  - Prisma schema & MySQL models; Project CRUD
-- [ ] **Milestone 3 — Local Runner**
-  - Runner config, registration, heartbeat, project mapping
-  - Active task claim (single Runner, one task at a time)
-- [ ] **Milestone 4 — Agent Runtime**
-  - `AgentExecutor` interface; OpenCode ACP executor
-  - ACP → ExecutorEvent → RunEvent bridge
-- [ ] **Milestone 5 — Git Runtime**
-  - Worktree manager, change detection, verification (test command)
-  - Commit / push (no direct push to default branch)
-- [ ] **Milestone 6 — GitHub integration**
-  - Webhook verification & dedupe, event normalizer, `@agent` mention trigger
-  - PR creation & callback comments
-- [ ] **Milestone 7 — Web Dashboard & mobile UX**
-  - Dashboard, projects, task list, task detail (timeline / logs / diff / tests / artifacts)
-- [ ] **Milestone 8 — Governance**
-  - Evidence engine & evidence-based completion decision; approval model (phase 2)
-- [ ] **Milestone 9 — Stability**
-  - Runner disconnect handling, retry, idempotency, secret redaction
+- ⬜ **Milestone 0 — Technical validation & protocol definition** ([#16](https://github.com/bao-linfeng/AgentDock/issues/16) [#17](https://github.com/bao-linfeng/AgentDock/issues/17) [#18](https://github.com/bao-linfeng/AgentDock/issues/18))
+  - OpenCode ACP smoke test · OMO Slim compatibility spike · OpenTag runner code reading
+- 🟡 **Milestone 1 — Monorepo & Protocol package** *(done)*
+  - ✅ pnpm workspace scaffolding
+  - ✅ `@agentdock/protocol` Zod schemas & Run status state machine (`CallbackRoute` / JSON Schema export still pending)
+- ⬜ **Milestone 2 — Control Server foundation** (epic [#6](https://github.com/bao-linfeng/AgentDock/issues/6): [#19](https://github.com/bao-linfeng/AgentDock/issues/19) [#20](https://github.com/bao-linfeng/AgentDock/issues/20) [#21](https://github.com/bao-linfeng/AgentDock/issues/21) [#22](https://github.com/bao-linfeng/AgentDock/issues/22))
+  - NestJS modules · Prisma schema & MySQL models · Project CRUD · Runner gateway + cancel channel
+- 🟡 **Milestone 3 — Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
+  - ✅ Runner config safety & secret handling ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ✅ Task-claim engine core ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
+  - ⬜ Registration/heartbeat · claim→execute loop
+- 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
+  - ✅ `AgentExecutor` interface
+  - ⬜ OpenCode ACP executor · ACP → RunEvent bridge
+- 🟡 **Milestone 5 — Git Runtime** ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
+  - ✅ Worktree manager, change detection, verification ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
+  - ⬜ Commit / push (no direct push to default branch)
+- 🟡 **Milestone 6 — GitHub integration** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+  - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
+  - ⬜ Webhook verification & dedupe · PR creation · callback comments
+- ⬜ **Milestone 7 — Web Dashboard & mobile UX** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
+  - Dashboard, projects, task list, task detail, mobile UX
+- 🟡 **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
+  - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
+  - ⬜ Approval model (phase 2)
+- 🟡 **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
+  - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ⬜ Runner disconnect handling · retry · idempotency
 
 ### Explicitly out of scope (until the single-machine OpenCode + GitHub loop works)
 
@@ -390,9 +394,13 @@ parallel multi-agent · scheduled tasks · complex approval flows · workflow DS
 
 ## 🤝 Contributing
 
-AgentDock is in its early planning stage. The best way to contribute right now
-is to read the design docs in [`docs/`](./docs) and open an issue with feedback
-on the requirements, architecture, or task breakdown.
+AgentDock is in early development — the foundation packages are built and the
+end-to-end loop is being assembled. Good ways to contribute right now:
+
+- Pick up an open [issue](https://github.com/bao-linfeng/AgentDock/issues) (see the
+  task ↔ issue table in [`docs/tasks.md`](./docs/tasks.md)).
+- Read the design docs in [`docs/`](./docs) and open feedback on requirements,
+  architecture, or the task breakdown.
 
 - [`docs/requirements.md`](./docs/requirements.md) — Goals, MVP scope, data models, security requirements
 - [`docs/architecture.md`](./docs/architecture.md) — System boundaries, tech stack, protocols, database, workflows
