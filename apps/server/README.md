@@ -116,6 +116,18 @@ Notes:
   (not an error) and the run stays `failed`. Re-completing against a branch
   that already has an open PR reuses that PR instead of erroring (idempotent
   retries).
+- GitHub status callback comments (docs/tasks.md T6.6 / #31): at each key run
+  lifecycle point — picked up (`RunnerGatewayService.claim`), running, failed
+  (`RunsService.applyStatus`), PR created, completed (`RunsService.complete`)
+  — `RunCallbackService` posts a comment back on the Issue/PR thread that
+  triggered the task. The callback target (`owner/repo` + issue/PR number) is
+  captured at webhook-ingest time from `@agentdock/github-adapter`'s
+  normalized event and stored on the `Task` row (`callbackRepo` /
+  `callbackIssueNumber` / `callbackIsPullRequest`); `source: 'web'` tasks have
+  none of these set and are silently skipped. Like PR creation, this only
+  fires when the project has exactly one bound repository with an
+  installation id, and every call is best-effort — a failed comment post is
+  logged as a warning and never blocks or fails the run itself.
 
 ## GitHub Webhook (`POST /github/webhook`)
 
@@ -136,10 +148,14 @@ from verifying the `X-Hub-Signature-256` header instead:
    to a `Project` (`repositories` table, `#28`); otherwise the delivery is
    ignored.
 5. `@agentdock/github-adapter`'s `normalizeGitHubEvent` extracts the actor,
-   trigger mention, and dedupe `sourceRef`; the actor must pass
-   `GITHUB_ACTOR_ALLOWLIST` when configured (requirements.md §6.2). A `null`
-   result (no mention, bot self-callback, disallowed actor) is ignored.
-6. Otherwise `TasksService.create` queues the task, reusing its own
+   trigger mention, dedupe `sourceRef`, and the status-callback target
+   (`callbackRepo` / `callbackIssueNumber` / `callbackIsPullRequest`, #31 —
+   the issue/PR number the triggering comment or event belongs to, not the
+   comment's own id); the actor must pass `GITHUB_ACTOR_ALLOWLIST` when
+   configured (requirements.md §6.2). A `null` result (no mention, bot
+   self-callback, disallowed actor) is ignored.
+6. Otherwise `TasksService.create` queues the task (carrying the callback
+   target through onto the `Task` row), reusing its own
    `sourceRef`/`deliveryId` unique-constraint dedupe as a second line of
    defense against a race between two concurrent deliveries.
 

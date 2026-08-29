@@ -22,7 +22,7 @@
 ---
 
 > [!NOTE]
-> **Project Status: early development — Control Server up, Runner claim→execute loop wired, Pull Request creation now automated.**
+> **Project Status: early development — Control Server up, Runner claim→execute loop wired, Pull Request creation and GitHub status callbacks now automated.**
 >
 > The monorepo scaffolding is in place and several foundation packages are
 > implemented and unit-tested: protocol schemas & run-status state machine,
@@ -48,9 +48,12 @@
 > [#28](https://github.com/bao-linfeng/AgentDock/issues/28)) opens the PR
 > itself and re-evaluates completion — so `fix`/`implement` runs against a
 > project with exactly one bound repository now complete as `succeeded`
-> instead of failing on evidence. Posting a callback comment back to the
-> originating GitHub thread is still open
-> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)).
+> instead of failing on evidence. **Posting a status callback comment back to
+> the originating GitHub thread is now implemented**
+> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31),
+> `apps/server/src/github/run-callback.service.ts`): the Control Server posts
+> a best-effort comment on the triggering Issue/PR thread at each key
+> lifecycle point (picked up, running, failed, PR created, completed).
 > The **Web console is now built**
 > (Dashboard, Task List, Task Detail with live SSE updates, Projects — see
 > [Milestone 7](#-roadmap)). Progress and the issue mapping are tracked in
@@ -280,8 +283,8 @@ AgentDock/
 > Control Server now opens a Pull Request automatically once a run pushes a
 > commit ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)), so step 3
 > reflects what actually runs today end to end: push (opt-in per project) →
-> Control Server opens the PR → run completes as `succeeded`. Posting a
-> callback comment on the originating GitHub thread is still open (#31). See
+> Control Server opens the PR → run completes as `succeeded` → Control Server
+> posts a status callback comment on the originating GitHub thread (#31). See
 > [Roadmap](#-roadmap).
 
 ### Prerequisites
@@ -371,8 +374,8 @@ commit, it opens a Pull Request itself (#30, using the GitHub App credentials
 from repository binding — this requires the target project to have exactly
 one bound repository), so `fix`/`implement` tasks now complete as
 `succeeded` end to end; `general` tasks (no PR requirement) complete
-normally regardless. Posting the run's outcome back as a GitHub comment is
-still open (#31).
+normally regardless. Once a run finishes, the Control Server also posts a
+status callback comment back to the originating GitHub thread (#31).
 
 ### 4. Start the Web console
 
@@ -432,11 +435,11 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
 - ✅ **Milestone 5 — Git Runtime** *(done)* ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree manager, change detection, verification ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
   - ✅ Commit (local, via #24) · ✅ Push new branch + refuse direct push to base/protected branches ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
-- 🟡 **Milestone 6 — GitHub integration** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+- ✅ **Milestone 6 — GitHub integration** *(done)* ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ Event normalizer & `@agent` mention trigger ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ✅ GitHub App/Installation auth & repository↔project binding ([#28](https://github.com/bao-linfeng/AgentDock/issues/28), `apps/server/src/github`)
   - ✅ Webhook signature verification & delivery dedupe ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
-  - ✅ PR creation ([#30](https://github.com/bao-linfeng/AgentDock/issues/30), `apps/server/src/github/pull-request.service.ts`) · ⬜ callback comments ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+  - ✅ PR creation ([#30](https://github.com/bao-linfeng/AgentDock/issues/30), `apps/server/src/github/pull-request.service.ts`) · ✅ callback comments ([#31](https://github.com/bao-linfeng/AgentDock/issues/31), `apps/server/src/github/run-callback.service.ts`)
 - ⬜ **Milestone 7 — Web Dashboard & mobile UX** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8): [#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
   - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29)

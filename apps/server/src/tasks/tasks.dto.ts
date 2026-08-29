@@ -19,6 +19,11 @@ export const CreateTaskSchema = z.object({
   intent: TaskIntentSchema.default('general'),
   prompt: z.string().trim().min(1).max(20_000),
   createdBy: z.string().trim().min(1).max(120).optional(),
+  /** GitHub status-callback target (#31): `owner/repo`, set only for `source: 'github'`. */
+  callbackRepo: z.string().trim().min(1).max(300).optional(),
+  /** Issue/PR number the triggering event's thread belongs to (#31). */
+  callbackIssueNumber: z.number().int().positive().optional(),
+  callbackIsPullRequest: z.boolean().default(false),
 });
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
 
@@ -40,6 +45,9 @@ export interface TaskDto {
   prompt: string;
   status: TaskStatus;
   createdBy?: string;
+  callbackRepo?: string;
+  callbackIssueNumber?: number;
+  callbackIsPullRequest?: boolean;
   createdAt?: string;
   updatedAt?: string;
   runs?: RunDto[];

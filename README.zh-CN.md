@@ -22,7 +22,7 @@
 ---
 
 > [!NOTE]
-> **项目状态:早期开发中 —— Control Server 已可运行，Runner 领取→执行主循环已打通，PR 创建已自动化。**
+> **项目状态:早期开发中 —— Control Server 已可运行，Runner 领取→执行主循环已打通，PR 创建与 GitHub 状态回帖均已自动化。**
 >
 > Monorepo 脚手架已就绪，多个基础包已实现并有单元测试:protocol Schema 与
 > Run 状态机、Git Worktree 运行时、GitHub 事件归一化、任务队列引擎、证据治理，
@@ -44,9 +44,13 @@
 > Commit 但仍缺 `pull_request` 证据时，持有 GitHub App 凭据的 Control Server
 > (凭据来自 [#28](https://github.com/bao-linfeng/AgentDock/issues/28) 的仓库
 > 绑定)会自动开 PR 并重新判定完成状态——因此绑定了恰好一个仓库的项目，其
-> `fix`/`implement` 类型任务现在可以在证据校验环节判定为 `succeeded`。把结果
-> 回评到原 GitHub 讨论线程仍待实现
-> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))。**Web 控制台已
+> `fix`/`implement` 类型任务现在可以在证据校验环节判定为 `succeeded`。**把结果
+> 回评到原 GitHub 讨论线程现已实现**
+> ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)，
+> `apps/server/src/github/run-callback.service.ts`):Control Server 会在
+> Run 生命周期的关键节点(已领取、运行中、失败、已创建 PR、已完成)向触发该
+> 任务的 Issue/PR 线程发一条状态回帖评论，且回帖失败不会影响 Run 本身的状态
+> 流转。**Web 控制台已
 > 构建完成**(仪表盘、任务列表、任务详情含 SSE 实时更新、
 > 项目管理,见
 > [路线图](#-里程碑与路线图) 里程碑 7)。进度与
@@ -346,8 +350,8 @@ Runner 启动后会先注册、开始心跳，随后每 5 秒轮询一次
 默认拒绝直推 base/受保护分支)。Control Server 一旦看到已推送的 Commit，会
 用仓库绑定时授权的 GitHub App 凭据自动创建 PR(#30;要求目标项目恰好绑定
 一个 GitHub 仓库),因此 `fix`/`implement` 类型的任务现在可以端到端完成为
-`succeeded`;不要求 PR 证据的 `general` 类型任务始终可以正常完成。把执行
-结果回评到 GitHub 讨论线程仍待实现(#31)。
+`succeeded`;不要求 PR 证据的 `general` 类型任务始终可以正常完成。Control
+Server 完成后还会向触发该任务的 GitHub 讨论线程回帖执行结果(#31)。
 
 ### 4. 启动 Web 控制台
 
@@ -405,11 +409,11 @@ pnpm dev
 - ✅ **Milestone 5 —— Git Runtime** *(已完成)* ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
   - ✅ Worktree 管理、变更检测、验证 ([#1](https://github.com/bao-linfeng/AgentDock/issues/1))
   - ✅ Commit(本地提交，随 #24 完成) · ✅ Push 新分支 + 拒绝直推 base/受保护分支 ([#27](https://github.com/bao-linfeng/AgentDock/issues/27))
-- 🟡 **Milestone 6 —— GitHub 集成** ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+- ✅ **Milestone 6 —— GitHub 集成** *(已完成)* ([#28](https://github.com/bao-linfeng/AgentDock/issues/28) [#29](https://github.com/bao-linfeng/AgentDock/issues/29) [#30](https://github.com/bao-linfeng/AgentDock/issues/30) [#31](https://github.com/bao-linfeng/AgentDock/issues/31))
   - ✅ 事件归一化与 `@agent` Mention 触发 ([#2](https://github.com/bao-linfeng/AgentDock/issues/2))
   - ✅ GitHub App / Installation 鉴权与仓库↔项目绑定 ([#28](https://github.com/bao-linfeng/AgentDock/issues/28)，`apps/server/src/github`)
   - ✅ Webhook 验签与投递去重 ([#29](https://github.com/bao-linfeng/AgentDock/issues/29))
-  - ✅ PR 创建 ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)，`apps/server/src/github/pull-request.service.ts`) · ⬜ 回调评论 ([#31](https://github.com/bao-linfeng/AgentDock/issues/31))
+  - ✅ PR 创建 ([#30](https://github.com/bao-linfeng/AgentDock/issues/30)，`apps/server/src/github/pull-request.service.ts`) · ✅ 回调评论 ([#31](https://github.com/bao-linfeng/AgentDock/issues/31)，`apps/server/src/github/run-callback.service.ts`)
 - ⬜ **Milestone 7 —— Web Dashboard 与移动端适配** (epic [#8](https://github.com/bao-linfeng/AgentDock/issues/8):[#32](https://github.com/bao-linfeng/AgentDock/issues/32)–[#36](https://github.com/bao-linfeng/AgentDock/issues/36))
   - ✅ Dashboard、任务列表、任务详情（时间线/输出/日志/Diff/测试/产物）、移动端体验
   - ✅ 项目（CRUD 与 Runner 映射已完成；仓库绑定已随 #28 打通，Webhook 触发投递已随 #29 打通）

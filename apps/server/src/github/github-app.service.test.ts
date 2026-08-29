@@ -174,3 +174,35 @@ describe('GitHubAppService.createPullRequest', () => {
     ).rejects.toThrow('boom');
   });
 });
+
+describe('GitHubAppService.createIssueComment', () => {
+  it('posts a comment and returns its id/url', async () => {
+    const createComment = vi.fn().mockResolvedValue({
+      data: { id: 99, html_url: 'https://github.com/acme/widgets/issues/7#issuecomment-99' },
+    });
+    const fakeOctokit = { rest: { issues: { createComment } } };
+    const appFactory = vi.fn().mockReturnValue({
+      octokit: {},
+      getInstallationOctokit: vi.fn().mockResolvedValue(fakeOctokit),
+    });
+    const service = new GitHubAppService(config(), appFactory as never);
+
+    const comment = await service.createIssueComment('123', {
+      owner: 'acme',
+      repo: 'widgets',
+      issueNumber: 7,
+      body: 'hello',
+    });
+
+    expect(comment).toEqual({
+      id: 99,
+      url: 'https://github.com/acme/widgets/issues/7#issuecomment-99',
+    });
+    expect(createComment).toHaveBeenCalledWith({
+      owner: 'acme',
+      repo: 'widgets',
+      issue_number: 7,
+      body: 'hello',
+    });
+  });
+});

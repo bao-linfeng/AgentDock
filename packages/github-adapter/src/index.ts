@@ -9,6 +9,17 @@ export interface AgentTaskCreateInput {
   intent: TaskIntent;
   prompt: string;
   actor: string;
+  /** `owner/repo`, so a status callback comment (#31) knows where to post. */
+  callbackRepo: string;
+  /**
+   * Issue or Pull Request number the triggering event belongs to — the
+   * comment-thread target for status callbacks (#31). `issue_comment` /
+   * `pull_request_review_comment` carry this on their parent issue/PR, not
+   * on the comment itself.
+   */
+  callbackIssueNumber: number;
+  /** True when the callback target is a Pull Request rather than an Issue. */
+  callbackIsPullRequest: boolean;
 }
 
 /** Supported GitHub webhook event kinds for MVP. */
@@ -103,6 +114,9 @@ interface Extracted {
   actor: GitHubUser | undefined;
   text: string;
   refId: string;
+  /** Issue/PR number the event's thread lives under, for status callbacks (#31). */
+  issueNumber: number | undefined;
+  isPullRequest: boolean;
 }
 
 /** Pull the actor, trigger text, and dedupe id out of each supported event. */
@@ -113,26 +127,52 @@ function extract(event: SupportedGitHubEvent, p: WebhookPayload): Extracted | nu
       const issue = p.issue;
       if (!issue) return null;
       const text = `${issue.title ?? ''}\n\n${issue.body ?? ''}`.trim();
-      return { actor: issue.user, text, refId: `issue#${issue.number}` };
+      return {
+        actor: issue.user,
+        text,
+        refId: `issue#${issue.number}`,
+        issueNumber: issue.number,
+        isPullRequest: false,
+      };
     }
     case 'issue_comment': {
       if (p.action !== 'created' && p.action !== 'edited') return null;
       const c = p.comment;
       if (!c) return null;
-      return { actor: c.user, text: c.body ?? '', refId: `issue_comment#${c.id}` };
+      // GitHub sends PR comments through `issue_comment` too; `pull_request`
+      // is present on the payload (not `p.issue`) when the thread is a PR.
+      return {
+        actor: c.user,
+        text: c.body ?? '',
+        refId: `issue_comment#${c.id}`,
+        issueNumber: p.issue?.number ?? p.pull_request?.number,
+        isPullRequest: p.pull_request !== undefined,
+      };
     }
     case 'pull_request': {
       if (p.action !== 'opened' && p.action !== 'edited') return null;
       const pr = p.pull_request;
       if (!pr) return null;
       const text = `${pr.title ?? ''}\n\n${pr.body ?? ''}`.trim();
-      return { actor: pr.user, text, refId: `pull_request#${pr.number}` };
+      return {
+        actor: pr.user,
+        text,
+        refId: `pull_request#${pr.number}`,
+        issueNumber: pr.number,
+        isPullRequest: true,
+      };
     }
     case 'pull_request_review_comment': {
       if (p.action !== 'created' && p.action !== 'edited') return null;
       const c = p.comment;
       if (!c) return null;
-      return { actor: c.user, text: c.body ?? '', refId: `review_comment#${c.id}` };
+      return {
+        actor: c.user,
+        text: c.body ?? '',
+        refId: `review_comment#${c.id}`,
+        issueNumber: p.pull_request?.number,
+        isPullRequest: true,
+      };
     }
   }
 }
@@ -156,7 +196,8 @@ export function normalizeGitHubEvent(
   const extracted = extract(event, p);
   if (!extracted) return null;
 
-  const { actor, text, refId } = extracted;
+  const { actor, text, refId, issueNumber, isPullRequest } = extracted;
+  if (issueNumber === undefined) return null;
 
   // Ignore bot self-callbacks (our own status comments, GitHub Apps).
   if (isBot(actor)) return null;
@@ -169,12 +210,17 @@ export function normalizeGitHubEvent(
   const prompt = stripMention(text, trigger);
   if (!prompt) return null;
 
-  const repo = p.repository?.full_name ?? 'unknown';
+  const repo = p.repository?.full_name;
+  if (!repo) return null;
+
   return {
     source: 'github',
     sourceRef: `github:${repo}:${refId}`,
     intent: inferIntent(prompt),
     prompt,
     actor: login,
+    callbackRepo: repo,
+    callbackIssueNumber: issueNumber,
+    callbackIsPullRequest: isPullRequest,
   };
 }

@@ -18,6 +18,9 @@ export function toTaskDto(task: Task, runs?: TaskRun[]): TaskDto {
     prompt: task.prompt,
     status: task.status as TaskStatus,
     createdBy: task.createdBy ?? undefined,
+    callbackRepo: task.callbackRepo ?? undefined,
+    callbackIssueNumber: task.callbackIssueNumber ?? undefined,
+    callbackIsPullRequest: task.callbackIsPullRequest,
     createdAt: toIso(task.createdAt),
     updatedAt: toIso(task.updatedAt),
     runs: runs?.map(toRunDto),
@@ -52,6 +55,9 @@ export class TasksService {
             intent: input.intent,
             prompt: input.prompt,
             createdBy: input.createdBy ?? null,
+            callbackRepo: input.callbackRepo ?? null,
+            callbackIssueNumber: input.callbackIssueNumber ?? null,
+            callbackIsPullRequest: input.callbackIsPullRequest ?? false,
           },
         });
         const run = await tx.taskRun.create({ data: { taskId: task.id } });

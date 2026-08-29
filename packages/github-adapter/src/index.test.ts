@@ -35,6 +35,9 @@ describe('normalizeGitHubEvent', () => {
       intent: 'fix',
       prompt: 'fix the duplicate callback',
       actor: 'alice',
+      callbackRepo: 'bao/agentdock',
+      callbackIssueNumber: 7,
+      callbackIsPullRequest: false,
     });
   });
 
@@ -52,6 +55,8 @@ describe('normalizeGitHubEvent', () => {
     expect(out?.intent).toBe('fix');
     expect(out?.sourceRef).toBe('github:bao/agentdock:issue#9');
     expect(out?.prompt).toContain('Broken login');
+    expect(out?.callbackIssueNumber).toBe(9);
+    expect(out?.callbackIsPullRequest).toBe(false);
   });
 
   it('normalizes a pull_request and review comment', () => {
@@ -62,6 +67,8 @@ describe('normalizeGitHubEvent', () => {
     });
     expect(pr?.intent).toBe('review');
     expect(pr?.sourceRef).toBe('github:bao/agentdock:pull_request#3');
+    expect(pr?.callbackIssueNumber).toBe(3);
+    expect(pr?.callbackIsPullRequest).toBe(true);
 
     const rc = normalizeGitHubEvent('pull_request_review_comment', {
       action: 'created',
@@ -71,6 +78,20 @@ describe('normalizeGitHubEvent', () => {
     });
     expect(rc?.intent).toBe('test');
     expect(rc?.sourceRef).toBe('github:bao/agentdock:review_comment#55');
+    expect(rc?.callbackIssueNumber).toBe(3);
+    expect(rc?.callbackIsPullRequest).toBe(true);
+  });
+
+  it('normalizes a PR comment sent through issue_comment', () => {
+    const out = normalizeGitHubEvent('issue_comment', {
+      action: 'created',
+      repository: repo,
+      issue: { number: 12 },
+      pull_request: { number: 12 },
+      comment: { id: 88, body: '@agent add tests', user: { login: 'alice' } },
+    });
+    expect(out?.callbackIssueNumber).toBe(12);
+    expect(out?.callbackIsPullRequest).toBe(true);
   });
 
   it('returns null without a trigger mention', () => {
@@ -97,6 +118,7 @@ describe('normalizeGitHubEvent', () => {
     const payload = {
       action: 'created',
       repository: repo,
+      issue: { number: 1 },
       comment: { id: 1, body: '@agent fix it', user: { login: 'stranger' } },
     };
     expect(normalizeGitHubEvent('issue_comment', payload, { allowlist: ['alice'] })).toBeNull();
@@ -121,6 +143,7 @@ describe('normalizeGitHubEvent', () => {
       {
         action: 'created',
         repository: repo,
+        issue: { number: 2 },
         comment: { id: 2, body: '/bot implement search', user: { login: 'alice' } },
       },
       { trigger: '/bot' },
