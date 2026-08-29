@@ -204,8 +204,13 @@ export interface ExecutorEventSink {
   log(message: string): Promise<void>;
   artifact(artifact: RunArtifact): Promise<void>;
   verification(result: VerificationResult): Promise<void>;
+  error(message: string, code?: string): Promise<void>;
 }
 ```
+
+> **[已实现 2026-08-29]** `error` 由 #26（T4.3 事件桥接）补充：ACP 侧的致命/非致命
+> 错误（连接失败、agent 拒绝、失败的 tool call）需要一个独立通道区分于普通
+> `log`，实现见 `packages/agent-runtime/src/index.ts`。
 
 ---
 
