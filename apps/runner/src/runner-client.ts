@@ -1,4 +1,5 @@
 import { platform } from 'node:os';
+import type { RunArtifact, TaskIntent, TaskSource } from '@agentdock/protocol';
 
 /** Response shape for `POST /runner/register` (see apps/server RunnerDto). */
 export interface RegisteredRunner {
@@ -13,6 +14,77 @@ export interface RegisteredRunner {
 export interface RunnerHeartbeatResponse {
   runnerId: string;
   activeRuns: { runId: string; status: string; cancelRequested: boolean }[];
+}
+
+/** A run's DTO as reported by the server (`apps/server/src/runs/runs.dto.ts`). */
+export interface RunDto {
+  id: string;
+  taskId: string;
+  runnerId?: string;
+  executor: string;
+  status: string;
+  branch?: string;
+  worktreePath?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  cancelRequested: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Everything the runner needs to execute one run (`GET /runner/tasks/claim`). */
+export interface ClaimedWork {
+  run: RunDto;
+  task: {
+    id: string;
+    intent: TaskIntent;
+    source: TaskSource;
+    sourceRef?: string;
+    prompt: string;
+  };
+  project: {
+    id: string;
+    name: string;
+    workspaceKey: string;
+    defaultBranch: string;
+    testCommand?: string;
+    buildCommand?: string;
+    workspacePath: string;
+  };
+}
+
+export interface ClaimResponse {
+  claimed: boolean;
+  work?: ClaimedWork;
+}
+
+/** Response shape for `POST /runner/runs/:id/heartbeat`. */
+export interface RunHeartbeatResponse {
+  runId: string;
+  status: string;
+  cancelRequested: boolean;
+}
+
+export interface RunEventDto {
+  id: string;
+  runId: string;
+  seq: number;
+  type: string;
+  payload: unknown;
+  createdAt: string;
+}
+
+export type RunEventType = 'status' | 'log' | 'tool' | 'artifact' | 'verification' | 'error';
+
+export interface CompleteRunInput {
+  status: 'succeeded' | 'failed' | 'cancelled';
+  errorCode?: string;
+  errorMessage?: string;
+  branch?: string;
+  worktreePath?: string;
+  artifacts?: RunArtifact[];
 }
 
 export class RunnerApiError extends Error {
@@ -126,5 +198,41 @@ export class RunnerClient {
   /** Idle heartbeat (no run in flight) — keeps the runner marked online. */
   async heartbeat(): Promise<RunnerHeartbeatResponse> {
     return this.request<RunnerHeartbeatResponse>('/runner/heartbeat', { method: 'POST' });
+  }
+
+  /**
+   * Try to claim the oldest queued run for a project mapped to this runner.
+   * `claimed: false` means there is nothing to do right now (empty queue, or
+   * this runner already has an in-flight run) — not an error.
+   */
+  async claim(): Promise<ClaimResponse> {
+    return this.request<ClaimResponse>('/runner/tasks/claim', { method: 'GET' });
+  }
+
+  /** Append a run event (status/log/tool/artifact/verification/error). */
+  async appendEvent(runId: string, type: RunEventType, payload?: unknown): Promise<RunEventDto> {
+    return this.request<RunEventDto>(`/runner/runs/${encodeURIComponent(runId)}/events`, {
+      method: 'POST',
+      body: JSON.stringify({ type, payload }),
+    });
+  }
+
+  /** Per-run heartbeat — carries the cancellation flag back (architecture §9). */
+  async runHeartbeat(runId: string, note?: string): Promise<RunHeartbeatResponse> {
+    return this.request<RunHeartbeatResponse>(
+      `/runner/runs/${encodeURIComponent(runId)}/heartbeat`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      },
+    );
+  }
+
+  /** Report the terminal outcome of a run. */
+  async complete(runId: string, input: CompleteRunInput): Promise<RunDto> {
+    return this.request<RunDto>(`/runner/runs/${encodeURIComponent(runId)}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ ...input, artifacts: input.artifacts ?? [] }),
+    });
   }
 }

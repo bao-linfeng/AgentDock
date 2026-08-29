@@ -1,19 +1,25 @@
 import { resolve } from 'node:path';
+import { OpenCodeExecutor } from '@agentdock/agent-runtime';
 import { DEFAULT_HEARTBEAT_INTERVAL_MS } from '@agentdock/shared';
+import { ClaimExecuteLoop } from './claim-execute-loop.js';
 import { type RunnerConfig, checkFilePermissions, loadConfig, validateProjects } from './config.js';
 import { HeartbeatLoop } from './heartbeat-loop.js';
 import { RunnerApiError, RunnerClient, RunnerTokenRevokedError } from './runner-client.js';
+
+/** Poll interval for `GET /runner/tasks/claim` while idle, in ms. */
+const CLAIM_POLL_INTERVAL_MS = 5_000;
 
 /**
  * Local Runner entry point.
  *
  * Confirmed decisions: single runner, one task at a time, pure OpenCode ACP.
  *
- * T3.2 (#23) is implemented below: register once, then heartbeat on
- * `DEFAULT_HEARTBEAT_INTERVAL_MS`, reporting online/offline transitions.
+ * T3.2 (#23): register once, then heartbeat on `DEFAULT_HEARTBEAT_INTERVAL_MS`,
+ * reporting online/offline transitions.
  *
- * TODO(M3/T3.4b, #24): actively claim tasks (GET /runner/tasks/claim) and run
- *   the claim -> git worktree -> OpenCodeExecutor -> report loop.
+ * T3.4b (#24): poll `GET /runner/tasks/claim` and drive the claim -> git
+ * worktree -> OpenCodeExecutor -> verify -> commit -> complete loop, honoring
+ * cancellation via the per-run heartbeat (see `ClaimExecuteLoop`).
  */
 async function main(): Promise<void> {
   const configPath = resolve(process.argv[2] ?? 'runner.config.json');
@@ -80,12 +86,28 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(
-    `[runner] registered; heartbeat every ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms. claim/execute loop is TODO (#24).`,
-  );
+  console.log(`[runner] registered; heartbeat every ${DEFAULT_HEARTBEAT_INTERVAL_MS}ms.`);
+
+  const executor = new OpenCodeExecutor();
+  const claimLoop = new ClaimExecuteLoop({
+    client,
+    pollIntervalMs: CLAIM_POLL_INTERVAL_MS,
+    executor,
+    onLog: (message) => {
+      console.log(`[runner] ${message}`);
+    },
+    onError: (error) => {
+      console.error(
+        `[runner] claim/execute error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    },
+  });
+  claimLoop.start();
+  console.log(`[runner] claim/execute loop polling every ${CLAIM_POLL_INTERVAL_MS}ms.`);
 
   const shutdown = () => {
     console.log('[runner] shutting down…');
+    claimLoop.stop();
     loop.stop();
     process.exit(0);
   };

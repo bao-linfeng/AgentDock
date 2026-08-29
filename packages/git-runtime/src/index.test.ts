@@ -124,3 +124,40 @@ describe('runVerification', () => {
     expect(result.exitCode).toBe(3);
   });
 });
+
+describe('WorktreeManager.commit', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await makeRepo();
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  it('returns null when there is nothing to commit', async () => {
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_6', 'main', 'agent/run_6');
+    const sha = await mgr.commit(handle, 'agentdock: no-op');
+    expect(sha).toBeNull();
+  });
+
+  it('stages and commits changes, returning the new commit sha', async () => {
+    const mgr = new WorktreeManager(repo);
+    const handle = await mgr.create('run_7', 'main', 'agent/run_7');
+    await writeFile(join(handle.worktreePath, 'new-file.txt'), 'hello\n');
+
+    const sha = await mgr.commit(handle, 'agentdock: add new-file');
+
+    expect(sha).toMatch(/^[0-9a-f]{40}$/);
+    const log = await execFileAsync('git', ['log', '-1', '--pretty=%s'], {
+      cwd: handle.worktreePath,
+    });
+    expect(log.stdout.trim()).toBe('agentdock: add new-file');
+    const status = await execFileAsync('git', ['status', '--porcelain'], {
+      cwd: handle.worktreePath,
+    });
+    expect(status.stdout.trim()).toBe('');
+  });
+});

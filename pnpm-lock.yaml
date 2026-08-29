@@ -35,6 +35,9 @@ importers:
       '@agentdock/git-runtime':
         specifier: workspace:*
         version: link:../../packages/git-runtime
+      '@agentdock/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
       '@agentdock/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
