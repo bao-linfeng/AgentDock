@@ -112,6 +112,9 @@ importers:
 
   packages/git-runtime:
     dependencies:
+      '@agentdock/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@agentdock/shared':
         specifier: workspace:*
         version: link:../shared
