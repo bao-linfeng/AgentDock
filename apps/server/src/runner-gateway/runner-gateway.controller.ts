@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Inject, Param, Post, UseGuards } from '@nestjs/common';
 import type { Runner } from '@prisma/client';
+import type { ApprovalDto } from '../approvals/approvals.dto.js';
+import { type RequestApprovalInput, RequestApprovalSchema } from '../approvals/approvals.dto.js';
 import { CurrentRunner, RunnerToken, RunnerTokenGuard } from '../auth/runner-token.guard.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import {
@@ -30,7 +32,8 @@ import { RunnerGatewayService } from './runner-gateway.service.js';
  *   POST /runner/register
  *   GET  /runner/tasks/claim
  *   POST /runner/runs/:id/events
- *   POST /runner/runs/:id/heartbeat   -> { cancelRequested }
+ *   POST /runner/runs/:id/heartbeat   -> { cancelRequested, approval? }
+ *   POST /runner/runs/:id/approvals   -> request approval for a gated action (#37)
  *   POST /runner/runs/:id/complete
  *   POST /runner/heartbeat            (idle heartbeat)
  */
@@ -76,6 +79,15 @@ export class RunnerGatewayController {
     @Body(new ZodValidationPipe(HeartbeatSchema)) body: HeartbeatInput,
   ): Promise<RunHeartbeatResponseDto> {
     return this.gateway.runHeartbeat(this.gateway.requireRegistered(runner), runId, body.note);
+  }
+
+  @Post('runs/:id/approvals')
+  requestApproval(
+    @CurrentRunner() runner: Runner | null,
+    @Param('id') runId: string,
+    @Body(new ZodValidationPipe(RequestApprovalSchema)) body: RequestApprovalInput,
+  ): Promise<ApprovalDto> {
+    return this.gateway.requestApproval(this.gateway.requireRegistered(runner), runId, body);
   }
 
   @Post('runs/:id/complete')

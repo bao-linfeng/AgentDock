@@ -53,6 +53,10 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 | `GET /runs/:id/artifacts`                 | Artifact metadata (diff / commit / PR …)             |
 | `POST /runs/:id/cancel`                   | Request cancellation                                 |
 | `POST /runs/:id/retry`                    | Retry a `failed` run as a new run (history kept)     |
+| `GET /runs/:runId/approvals`              | List approvals requested for a run                   |
+| `GET /approvals/pending`                  | List every approval still awaiting a decision         |
+| `GET /approvals/:id`                      | Approval detail                                       |
+| `POST /approvals/:id/resolve`             | Approve/deny a pending approval (`{ decision }`)       |
 | `GET /runners` · `GET /runners/:id`       | Runner inventory (`online` derived from heartbeat)   |
 | `POST /runners/:id/revoke`                | Revoke a runner token                                |
 | `GET /runners/:id/projects`               | Project → local workspace path mappings              |
@@ -68,7 +72,8 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 POST /runner/register            -> registers/refreshes the runner (token hash only)
 GET  /runner/tasks/claim         -> { claimed, work? }
 POST /runner/runs/:id/events     -> { seq }            (status events drive the state machine)
-POST /runner/runs/:id/heartbeat  -> { cancelRequested } (cancellation down-channel)
+POST /runner/runs/:id/heartbeat  -> { cancelRequested, approvals[] } (cancellation + approval down-channel)
+POST /runner/runs/:id/approvals  -> requests approval for a shell/push/destructive action (#37)
 POST /runner/runs/:id/complete   -> terminal status + artifacts
 POST /runner/heartbeat           -> idle heartbeat, lists in-flight runs
 ```
@@ -85,6 +90,24 @@ Notes:
   `publishing` first. `failed` / `cancelled` are allowed from any live state.
 - Cancellation never introduces a `cancelling` status: the API stamps
   `task_runs.cancel_requested_at` and the runner picks it up from its heartbeat.
+- Approval gate (docs/tasks.md T8.3, #37): a runner blocked on a high-risk
+  action (an ACP `session/request_permission` shell/tool-call request, a
+  `push`, or anything it flags as `destructive`) calls
+  `POST /runner/runs/:id/approvals`, which creates a pending `Approval` row
+  and transitions the run to `needs_approval`. The runner then polls
+  `POST /runner/runs/:id/heartbeat` — the same channel used for cancellation —
+  whose response now also carries `approvals: [{ approvalId, action, status }]`
+  (a run can have more than one approval outstanding at once — e.g.
+  concurrent ACP shell/tool-call permission requests — and the list also
+  includes approvals resolved in roughly the last hour, so a poller waiting
+  on a specific `approvalId` can observe the transition out of `pending`)
+  once a decision (`POST /approvals/:id/resolve` from the Web console) is
+  made. Every request/resolution is also appended to `run_events` as a
+  `type: 'approval'` event, so it shows up over the existing SSE stream
+  without a separate channel. The run status machine (`@agentdock/protocol`)
+  allows `publishing <-> needs_approval` in addition to the existing
+  `running <-> needs_approval`, so a push awaiting approval doesn't have to
+  jump back to `running` first.
 - Event payloads pass through `redactSecrets` before they are persisted
   ("Secret 不写 RunEvent" — architecture §14).
 - A background sweep (`RunnerDisconnectSweeper`, `@nestjs/schedule`) runs every

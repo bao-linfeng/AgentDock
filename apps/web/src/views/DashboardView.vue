@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
+import { approvalsApi } from '../api/approvals';
 import { projectsApi } from '../api/projects';
 import { runnersApi } from '../api/runners';
 import { tasksApi } from '../api/tasks';
@@ -30,6 +31,12 @@ const failedTasksQuery = useQuery({
 const runnersQuery = useQuery({
   queryKey: ['dashboard', 'runners'],
   queryFn: () => runnersApi.list(),
+  refetchInterval: REFRESH_MS,
+});
+
+const pendingApprovalsQuery = useQuery({
+  queryKey: ['dashboard', 'pending-approvals'],
+  queryFn: () => approvalsApi.listPending(),
   refetchInterval: REFRESH_MS,
 });
 
@@ -66,6 +73,28 @@ const recentPrsQuery = useQuery({
 function projectName(projectId: string): string {
   return projectsQuery.data.value?.find((p) => p.id === projectId)?.name ?? projectId;
 }
+
+// Resolve each pending approval's run -> task, so the dashboard can link
+// straight to the Task Detail page where ApprovalPanel lives.
+const pendingApprovalTasksQuery = useQuery({
+  queryKey: ['dashboard', 'pending-approval-tasks', () => pendingApprovalsQuery.data.value],
+  enabled: computed(() => (pendingApprovalsQuery.data.value?.length ?? 0) > 0),
+  queryFn: async () => {
+    const approvals = pendingApprovalsQuery.data.value ?? [];
+    const entries: Array<{ approval: (typeof approvals)[number]; taskId: string }> = [];
+    for (const approval of approvals) {
+      const run = await runsApi.get(approval.runId);
+      entries.push({ approval, taskId: run.taskId });
+    }
+    return entries;
+  },
+});
+
+const approvalActionLabels: Record<string, string> = {
+  shell: 'Shell 命令',
+  push: '推送分支',
+  destructive: '破坏性操作',
+};
 </script>
 
 <template>
@@ -86,6 +115,25 @@ function projectName(projectId: string): string {
             <span class="row">
               <span class="muted">{{ projectName(task.projectId) }}</span>
               <StatusBadge :status="task.status" />
+            </span>
+          </RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card stack">
+      <div class="row-between">
+        <h2>待审批</h2>
+        <span class="muted">{{ pendingApprovalsQuery.data.value?.length ?? 0 }}</span>
+      </div>
+      <p v-if="pendingApprovalsQuery.isLoading.value" class="muted">加载中…</p>
+      <p v-else-if="!pendingApprovalsQuery.data.value?.length" class="muted">当前没有待审批的操作。</p>
+      <ul v-else class="stack task-list">
+        <li v-for="entry in pendingApprovalTasksQuery.data.value" :key="entry.approval.id">
+          <RouterLink :to="{ name: 'task-detail', params: { id: entry.taskId } }" class="task-row">
+            <span class="task-prompt">
+              {{ approvalActionLabels[entry.approval.action] ?? entry.approval.action }}
+              <span class="muted"> · {{ entry.approval.summary ?? '（无摘要）' }}</span>
             </span>
           </RouterLink>
         </li>

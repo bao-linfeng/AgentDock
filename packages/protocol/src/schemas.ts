@@ -52,6 +52,8 @@ export const RunEventTypeSchema = z.enum([
   'artifact',
   'verification',
   'error',
+  /** An Approval was requested or resolved (docs/tasks.md T8.3, #37). */
+  'approval',
 ]);
 export type RunEventType = z.infer<typeof RunEventTypeSchema>;
 
@@ -93,3 +95,33 @@ export const VerificationResultSchema = z.object({
   output: z.string().optional(),
 });
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;
+
+/**
+ * High-risk actions gated behind an approval (docs/tasks.md T8.3, #37):
+ *  - `shell`: an ACP `session/request_permission` call from the executor
+ *    (e.g. OpenCode wants to run an arbitrary shell command / tool call).
+ *  - `push`: pushing the agent branch to a remote (`WorktreeManager.push`).
+ *  - `destructive`: any operation the caller flags as destructive/irreversible
+ *    (e.g. force-push, deleting files/branches) — reuses the same gate with a
+ *    distinct action kind so the Web UI can render it with extra emphasis.
+ */
+export const ApprovalActionSchema = z.enum(['shell', 'push', 'destructive']);
+export type ApprovalAction = z.infer<typeof ApprovalActionSchema>;
+
+export const ApprovalStatusSchema = z.enum(['pending', 'approved', 'denied']);
+export type ApprovalStatus = z.infer<typeof ApprovalStatusSchema>;
+
+export const ApprovalSchema = z.object({
+  id: z.string(),
+  runId: z.string(),
+  action: ApprovalActionSchema,
+  status: ApprovalStatusSchema,
+  /** Human-readable summary of what is being requested (e.g. the shell command). */
+  summary: z.string().optional(),
+  /** Free-form structured detail (e.g. ACP tool call payload), redacted before storage. */
+  detail: z.record(z.unknown()).optional(),
+  requestedAt: z.string().datetime(),
+  resolvedAt: z.string().datetime().optional(),
+  resolvedBy: z.string().optional(),
+});
+export type Approval = z.infer<typeof ApprovalSchema>;

@@ -211,6 +211,35 @@ describe('RunnerClient.runHeartbeat', () => {
   });
 });
 
+describe('RunnerClient.requestApproval', () => {
+  it('posts the action/summary/detail to /runner/runs/:id/approvals', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'app_1',
+        runId: 'run_1',
+        action: 'shell',
+        status: 'pending',
+        requestedAt: 'now',
+      }),
+    );
+    const client = new RunnerClient({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 'tok',
+      fetchImpl,
+    });
+
+    const approval = await client.requestApproval('run_1', {
+      action: 'shell',
+      summary: 'run `pnpm build`',
+    });
+
+    expect(approval.status).toBe('pending');
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit & { body: string }];
+    expect(url).toBe('http://localhost:3100/runner/runs/run_1/approvals');
+    expect(JSON.parse(init.body)).toEqual({ action: 'shell', summary: 'run `pnpm build`' });
+  });
+});
+
 describe('RunnerClient.complete', () => {
   it('posts the terminal status and artifacts', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(

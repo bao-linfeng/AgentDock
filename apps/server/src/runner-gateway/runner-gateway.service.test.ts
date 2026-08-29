@@ -1,6 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { Runner, TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { ApprovalsService } from '../approvals/approvals.service.js';
 import type { RunCallbackService } from '../github/run-callback.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { RunnersService } from '../runners/runners.service.js';
@@ -53,22 +54,39 @@ function claimableRun(id: string) {
   };
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal structural stubs
-function build(prisma: Record<string, any>, runs: Record<string, any> = {}) {
+function build(
+  // biome-ignore lint/suspicious/noExplicitAny: minimal structural stub
+  prisma: Record<string, any>,
+  // biome-ignore lint/suspicious/noExplicitAny: minimal structural stub
+  runs: Record<string, any> = {},
+  // biome-ignore lint/suspicious/noExplicitAny: minimal structural stub
+  approvals: Record<string, any> = {},
+) {
   const recordEvent = vi.fn().mockResolvedValue({});
-  const runsStub = { recordEvent, ...runs } as unknown as RunsService;
+  const applyStatus = vi.fn().mockResolvedValue({});
+  const runsStub = { recordEvent, applyStatus, ...runs } as unknown as RunsService;
   const runnersStub = {
     touchHeartbeat: vi.fn().mockResolvedValue(undefined),
   } as unknown as RunnersService;
   const post = vi.fn().mockResolvedValue(undefined);
   const callbacksStub = { post } as unknown as RunCallbackService;
+  const pendingForRun = vi.fn().mockResolvedValue(null);
+  const approvalsForHeartbeat = vi.fn().mockResolvedValue([]);
+  const request = vi.fn().mockResolvedValue({});
+  const approvalsStub = {
+    pendingForRun,
+    approvalsForHeartbeat,
+    request,
+    ...approvals,
+  } as unknown as ApprovalsService;
   const service = new RunnerGatewayService(
     prisma as unknown as PrismaService,
     runsStub,
     runnersStub,
     callbacksStub,
+    approvalsStub,
   );
-  return { service, recordEvent, runnersStub, callbacksStub };
+  return { service, recordEvent, applyStatus, runnersStub, callbacksStub, approvalsStub };
 }
 
 describe('RunnerGatewayService.requireRegistered', () => {
@@ -183,6 +201,7 @@ describe('RunnerGatewayService.runHeartbeat', () => {
       runId: 'run_1',
       status: 'running',
       cancelRequested: true,
+      approvals: [],
     });
   });
 
@@ -197,6 +216,106 @@ describe('RunnerGatewayService.runHeartbeat', () => {
     );
     const response = await service.runHeartbeat(runner, 'run_1');
     expect(response.cancelRequested).toBe(false);
+  });
+
+  it('surfaces pending/recent approvals so the runner knows what it is still blocked on', async () => {
+    const approvalsForHeartbeat = vi
+      .fn()
+      .mockResolvedValue([{ id: 'app_1', action: 'shell', status: 'pending' }]);
+    const { service } = build(
+      {},
+      {
+        requireRun: vi
+          .fn()
+          .mockResolvedValue(queuedRun('run_1', { status: 'needs_approval', runnerId: 'rnr_1' })),
+      },
+      { approvalsForHeartbeat },
+    );
+
+    const response = await service.runHeartbeat(runner, 'run_1');
+    expect(response.approvals).toEqual([
+      { approvalId: 'app_1', action: 'shell', status: 'pending' },
+    ]);
+  });
+
+  it('surfaces multiple concurrent approvals for the same run', async () => {
+    const approvalsForHeartbeat = vi.fn().mockResolvedValue([
+      { id: 'app_1', action: 'shell', status: 'pending' },
+      { id: 'app_2', action: 'shell', status: 'approved' },
+    ]);
+    const { service } = build(
+      {},
+      {
+        requireRun: vi
+          .fn()
+          .mockResolvedValue(queuedRun('run_1', { status: 'needs_approval', runnerId: 'rnr_1' })),
+      },
+      { approvalsForHeartbeat },
+    );
+
+    const response = await service.runHeartbeat(runner, 'run_1');
+    expect(response.approvals).toHaveLength(2);
+    expect(response.approvals.map((a) => a.approvalId)).toEqual(['app_1', 'app_2']);
+  });
+
+  it('returns an empty approvals list once nothing is pending or recently resolved', async () => {
+    const approvalsForHeartbeat = vi.fn().mockResolvedValue([]);
+    const { service } = build(
+      {},
+      {
+        requireRun: vi
+          .fn()
+          .mockResolvedValue(queuedRun('run_1', { status: 'running', runnerId: 'rnr_1' })),
+      },
+      { approvalsForHeartbeat },
+    );
+
+    const response = await service.runHeartbeat(runner, 'run_1');
+    expect(response.approvals).toEqual([]);
+  });
+});
+
+describe('RunnerGatewayService.requestApproval', () => {
+  it('transitions the run to needs_approval and delegates to ApprovalsService', async () => {
+    const request = vi.fn().mockResolvedValue({ id: 'app_1', status: 'pending' });
+    const { service, applyStatus, approvalsStub } = build(
+      {},
+      {
+        requireRun: vi
+          .fn()
+          .mockResolvedValue(queuedRun('run_1', { status: 'running', runnerId: 'rnr_1' })),
+      },
+      { request },
+    );
+
+    const result = await service.requestApproval(runner, 'run_1', {
+      action: 'shell',
+      summary: 'run `rm -rf build`',
+    });
+
+    expect(applyStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'run_1' }),
+      'needs_approval',
+    );
+    expect(approvalsStub.request).toHaveBeenCalledWith('run_1', {
+      action: 'shell',
+      summary: 'run `rm -rf build`',
+    });
+    expect(result).toEqual({ id: 'app_1', status: 'pending' });
+  });
+
+  it('does not re-apply the transition when the run is already needs_approval', async () => {
+    const { service, applyStatus } = build(
+      {},
+      {
+        requireRun: vi
+          .fn()
+          .mockResolvedValue(queuedRun('run_1', { status: 'needs_approval', runnerId: 'rnr_1' })),
+      },
+    );
+
+    await service.requestApproval(runner, 'run_1', { action: 'push' });
+    expect(applyStatus).not.toHaveBeenCalled();
   });
 });
 

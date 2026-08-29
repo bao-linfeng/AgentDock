@@ -5,6 +5,7 @@ import { ApiError } from '../api/client';
 import { projectsApi } from '../api/projects';
 import { runsApi } from '../api/runs';
 import { tasksApi } from '../api/tasks';
+import ApprovalPanel from '../components/ApprovalPanel.vue';
 import LogViewer from '../components/LogViewer.vue';
 import RunTimeline from '../components/RunTimeline.vue';
 import StatusBadge from '../components/StatusBadge.vue';
@@ -168,6 +169,8 @@ function formatTime(iso?: string): string {
           </a>
         </div>
         <p v-if="cancelError" class="error-text">{{ cancelError }}</p>
+
+        <ApprovalPanel :run-id="activeRunId" :events="allEvents" />
       </div>
 
       <nav class="tab-bar" aria-label="任务详情分区">

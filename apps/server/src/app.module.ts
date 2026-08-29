@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ApprovalsModule } from './approvals/approvals.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { EventsModule } from './events/events.module.js';
@@ -29,6 +30,7 @@ import { TasksModule } from './tasks/tasks.module.js';
     RunnerGatewayModule,
     GitHubModule,
     EventsModule,
+    ApprovalsModule,
   ],
   controllers: [HealthController],
 })

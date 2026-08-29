@@ -61,10 +61,22 @@ export interface ClaimResponse {
 }
 
 /** Response shape for `POST /runner/runs/:id/heartbeat`. */
+export interface PendingApprovalStatus {
+  approvalId: string;
+  action: 'shell' | 'push' | 'destructive';
+  status: 'pending' | 'approved' | 'denied';
+}
+
 export interface RunHeartbeatResponse {
   runId: string;
   status: string;
   cancelRequested: boolean;
+  /**
+   * Every approval this run has pending, plus any resolved recently — a run
+   * can have more than one in flight at once, so match on `approvalId`
+   * rather than assuming there is only one (docs/tasks.md T8.3, #37).
+   */
+  approvals: PendingApprovalStatus[];
 }
 
 export interface RunEventDto {
@@ -85,6 +97,24 @@ export interface CompleteRunInput {
   branch?: string;
   worktreePath?: string;
   artifacts?: RunArtifact[];
+}
+
+export interface ApprovalDto {
+  id: string;
+  runId: string;
+  action: 'shell' | 'push' | 'destructive';
+  status: 'pending' | 'approved' | 'denied';
+  summary?: string;
+  detail?: unknown;
+  requestedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+export interface RequestApprovalInput {
+  action: 'shell' | 'push' | 'destructive';
+  summary?: string;
+  detail?: Record<string, unknown>;
 }
 
 export class RunnerApiError extends Error {
@@ -226,6 +256,18 @@ export class RunnerClient {
         body: JSON.stringify({ note }),
       },
     );
+  }
+
+  /**
+   * Request approval for a high-risk action (docs/tasks.md T8.3, #37).
+   * Transitions the run to `needs_approval`; the caller should then poll
+   * `runHeartbeat` until `approval.status` is no longer `pending`.
+   */
+  async requestApproval(runId: string, input: RequestApprovalInput): Promise<ApprovalDto> {
+    return this.request<ApprovalDto>(`/runner/runs/${encodeURIComponent(runId)}/approvals`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
 
   /** Report the terminal outcome of a run. */

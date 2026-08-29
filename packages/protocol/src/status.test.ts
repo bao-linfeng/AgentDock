@@ -46,4 +46,13 @@ describe('run status state machine', () => {
     expect(canTransition('running', 'needs_approval')).toBe(true);
     expect(canTransition('needs_approval', 'running')).toBe(true);
   });
+
+  it('supports approval loop during publishing: publishing -> needs_approval -> publishing (docs/tasks.md T8.3, #37)', () => {
+    expect(canTransition('publishing', 'needs_approval')).toBe(true);
+    expect(canTransition('needs_approval', 'publishing')).toBe(true);
+  });
+
+  it('still requires succeeded to be reached through publishing, not needs_approval directly', () => {
+    expect(canTransition('needs_approval', 'succeeded')).toBe(false);
+  });
 });

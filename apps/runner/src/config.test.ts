@@ -35,6 +35,7 @@ describe('RunnerConfigSchema', () => {
       enabled: false,
       remote: 'origin',
       protectedBranches: [],
+      requireApproval: false,
     });
   });
 
@@ -54,7 +55,23 @@ describe('RunnerConfigSchema', () => {
       enabled: true,
       remote: 'upstream',
       protectedBranches: ['release'],
+      requireApproval: false,
     });
+  });
+
+  it('accepts requireApproval: true to gate push behind an approval (docs/tasks.md T8.3, #37)', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: {
+        proj_1: {
+          workspacePath: '/tmp/repo',
+          push: { enabled: true, requireApproval: true },
+        },
+      },
+    });
+    expect(cfg.projects.proj_1?.push.requireApproval).toBe(true);
   });
 
   it('rejects a bad server url', () => {

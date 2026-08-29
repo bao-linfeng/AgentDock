@@ -67,7 +67,7 @@ export function useRunEvents(runId: Ref<string | undefined | null>) {
       handleRawEvent(message);
     };
 
-    const eventTypes = ['status', 'log', 'tool', 'artifact', 'verification', 'error'];
+    const eventTypes = ['status', 'log', 'tool', 'artifact', 'verification', 'error', 'approval'];
     for (const type of eventTypes) {
       es.addEventListener(type, (message) => handleRawEvent(message as MessageEvent));
     }

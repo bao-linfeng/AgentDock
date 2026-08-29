@@ -434,10 +434,13 @@ created_at
 ```text
 id
 run_id
-action
-status
+action        -- shell | push | destructive (docs/tasks.md T8.3, #37)
+status        -- pending | approved | denied
+summary
+detail_json
 requested_at
 resolved_at
+resolved_by
 ```
 
 ---
@@ -452,12 +455,12 @@ queued
 assigned
   ↓
 running
-  ├── needs_approval
-  ├── failed
-  ├── cancelled
-  └── verifying
+  ├── needs_approval ──┐
+  ├── failed           │ (loops back to running / verifying / publishing)
+  ├── cancelled         │
+  └── verifying ←───────┘
          ↓
-      publishing
+      publishing ←→ needs_approval
          ↓
       succeeded
 ```
@@ -466,21 +469,39 @@ running
 
 - OpenTag V0 的核心状态可直接借鉴。
 - 本项目额外增加 `verifying` 和 `publishing`，方便 UI 显示测试、Commit、Push、PR 阶段。
+- `needs_approval` 是一个可重入的"侧支"状态（docs/tasks.md T8.3, #37）：`running`
+  或 `publishing` 中遇到高风险操作（shell 工具调用 / push / 破坏性操作）时可以
+  转入 `needs_approval`，审批通过或拒绝后回到发起该请求的状态（`running` /
+  `verifying` / `publishing`）继续或中止，而不会绕过 `verifying` →
+  `publishing` 直接到达 `succeeded`。
 
 ---
 
 ## 9. Runner 通信
 
-MVP 实现（已完成，#22）：
+MVP 实现（已完成，#22；审批相关端点见 #37）：
 
 ```text
 Runner → POST /runner/register
 Runner → GET  /runner/tasks/claim
 Runner → POST /runner/runs/:id/events
-Runner → POST /runner/runs/:id/heartbeat
+Runner → POST /runner/runs/:id/heartbeat      # 返回 { cancelRequested, approvals[] }
+Runner → POST /runner/runs/:id/approvals      # 请求审批（shell/push/destructive）
 Runner → POST /runner/runs/:id/complete
 Runner → POST /runner/heartbeat          # 空闲心跳
 ```
+
+> **[已实现 2026-08-30 — 审批下发, #37]** 与取消信号同理，审批决议也走
+> **heartbeat 响应**：Runner 遇到高风险操作（ACP `session/request_permission`
+> 请求的 shell 工具调用、`push`、或标记为 `destructive` 的操作）时调用
+> `POST /runner/runs/:id/approvals` 创建一条 pending `Approval` 并将 Run 转入
+> `needs_approval`；随后持续轮询 `POST /runner/runs/:id/heartbeat`，其响应体的
+> `approvals` 数组带回该 run 所有仍在等待或最近（约一小时内）已决议的审批状态——
+> 一个 run 可能同时有多个待审批项（例如并发的 ACP shell 工具调用权限请求），
+> 数组设计避免了轮询者只能看到"最早一条"而互相阻塞。Web 端调用
+> `POST /approvals/:id/resolve`（`{ decision: 'approved' | 'denied' }`）完成
+>人工决议。等待期间 Runner 会阻塞对应操作（ACP 侧是阻塞 agent 进程本身，不
+> kill 掉），超时（默认 24h）未决议按拒绝处理，不会让 Run 无限期挂起。
 
 > **[已决策 2026-08-29 — 取消信号下发]** 取消走 **heartbeat 响应**：Web 调用
 > `POST /runs/:id/cancel` 时，Server 给 `task_runs.cancel_requested_at` 打时间戳；
@@ -696,7 +717,8 @@ Allowed Workspace
 
 ### Phase 2
 
-- Approvals
+- ~~Approvals~~ — 已实现（docs/tasks.md T8.3, #37）：shell / push / destructive
+  三类高风险操作审批门，见 §9 Runner 通信与 §7 `approvals` 表。
 - CI 状态回流
 - PR Review Agent
 - Task Retry

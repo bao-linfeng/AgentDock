@@ -27,7 +27,14 @@ export const ACTIVE_RUN_STATUSES: RunStatus[] = [
 
 export const TERMINAL_RUN_STATUSES: RunStatus[] = ['succeeded', 'failed', 'cancelled'];
 
-export type RunEventType = 'status' | 'log' | 'tool' | 'artifact' | 'verification' | 'error';
+export type RunEventType =
+  | 'status'
+  | 'log'
+  | 'tool'
+  | 'artifact'
+  | 'verification'
+  | 'error'
+  | 'approval';
 
 export type ArtifactType = 'diff' | 'file' | 'test_result' | 'commit' | 'pull_request';
 
@@ -184,6 +191,26 @@ export interface BindRepositoryInput {
 export interface HealthDto {
   status: string;
   runStatuses: number;
+}
+
+export type ApprovalAction = 'shell' | 'push' | 'destructive';
+export type ApprovalStatus = 'pending' | 'approved' | 'denied';
+
+export interface ApprovalDto {
+  id: string;
+  runId: string;
+  action: ApprovalAction;
+  status: ApprovalStatus;
+  summary?: string;
+  detail?: unknown;
+  requestedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+export interface ResolveApprovalInput {
+  decision: 'approved' | 'denied';
+  resolvedBy?: string;
 }
 
 export interface ApiErrorBody {

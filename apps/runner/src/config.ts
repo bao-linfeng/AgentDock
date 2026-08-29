@@ -13,6 +13,12 @@ export const PushConfigSchema = z.object({
   remote: z.string().min(1).default('origin'),
   /** Extra branches (beyond the project's `defaultBranch`) that must never be pushed to directly. */
   protectedBranches: z.array(z.string().min(1)).default([]),
+  /**
+   * Gate the push behind an approval (docs/tasks.md T8.3, #37): when true,
+   * the runner requests approval and blocks until a decision (or timeout)
+   * before pushing. Defaults to false to preserve pre-#37 behavior.
+   */
+  requireApproval: z.boolean().default(false),
 });
 
 /** Per-project mapping: server project id -> local workspace path. */

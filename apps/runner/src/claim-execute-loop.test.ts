@@ -306,7 +306,12 @@ describe('ClaimExecuteLoop push behavior', () => {
       client,
       pollIntervalMs: 1000,
       executor,
-      getPushConfig: () => ({ enabled: true, remote: 'origin', protectedBranches: [] }),
+      getPushConfig: () => ({
+        enabled: true,
+        remote: 'origin',
+        protectedBranches: [],
+        requireApproval: false,
+      }),
     });
 
     await loop.tick();
@@ -333,7 +338,12 @@ describe('ClaimExecuteLoop push behavior', () => {
       client,
       pollIntervalMs: 1000,
       executor,
-      getPushConfig: () => ({ enabled: true, remote: 'origin', protectedBranches: [] }),
+      getPushConfig: () => ({
+        enabled: true,
+        remote: 'origin',
+        protectedBranches: [],
+        requireApproval: false,
+      }),
       onLog: (message) => logs.push(message),
     });
 
@@ -342,5 +352,100 @@ describe('ClaimExecuteLoop push behavior', () => {
     const completion = client.completions[0]?.input;
     expect(completion?.status).toBe('succeeded');
     expect(logs.some((l) => l.includes('push skipped'))).toBe(true);
+  });
+
+  it('skips the push and logs when requireApproval is set without a configured gate', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const logs: string[] = [];
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      getPushConfig: () => ({
+        enabled: true,
+        remote: 'origin',
+        protectedBranches: [],
+        requireApproval: true,
+      }),
+      onLog: (message) => logs.push(message),
+    });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.artifacts?.some((a) => a.metadata?.pushed)).toBe(false);
+    expect(logs.some((l) => l.includes('no approval gate is configured'))).toBe(true);
+  });
+
+  it('pushes once requestPushApproval resolves as approved, cycling through needs_approval', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const requestPushApproval = vi.fn().mockResolvedValue('approved' as const);
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      getPushConfig: () => ({
+        enabled: true,
+        remote: 'origin',
+        protectedBranches: [],
+        requireApproval: true,
+      }),
+      requestPushApproval,
+    });
+
+    await loop.tick();
+
+    expect(requestPushApproval).toHaveBeenCalledWith(
+      'run_1',
+      expect.stringContaining('push'),
+      expect.objectContaining({ remote: 'origin' }),
+    );
+    const statusEvents = client.events.filter((e) => e.type === 'status');
+    expect(statusEvents.map((e) => (e.payload as { status: string }).status)).toEqual(
+      expect.arrayContaining(['publishing', 'needs_approval']),
+    );
+    const completion = client.completions[0]?.input;
+    const pushed = completion?.artifacts?.find((a) => a.metadata?.pushed === true);
+    expect(pushed).toBeDefined();
+  });
+
+  it('does not push when requestPushApproval resolves as denied', async () => {
+    await git(repo, ['remote', 'add', 'origin', remote]);
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const logs: string[] = [];
+    const requestPushApproval = vi.fn().mockResolvedValue('denied' as const);
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      getPushConfig: () => ({
+        enabled: true,
+        remote: 'origin',
+        protectedBranches: [],
+        requireApproval: true,
+      }),
+      requestPushApproval,
+      onLog: (message) => logs.push(message),
+    });
+
+    await loop.tick();
+
+    expect(logs.some((l) => l.includes('push denied by approval gate'))).toBe(true);
+    const completion = client.completions[0]?.input;
+    expect(completion?.artifacts?.some((a) => a.metadata?.pushed)).toBe(false);
   });
 });

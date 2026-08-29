@@ -1,6 +1,8 @@
 import type { TaskIntent, TaskSource } from '@agentdock/protocol';
 import { ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Runner } from '@prisma/client';
+import type { ApprovalDto, RequestApprovalInput } from '../approvals/approvals.dto.js';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnersService } from '../runners/runners.service.js';
@@ -43,6 +45,7 @@ export class RunnerGatewayService {
     @Inject(RunsService) private readonly runs: RunsService,
     @Inject(RunnersService) private readonly runners: RunnersService,
     @Inject(RunCallbackService) private readonly callbacks: RunCallbackService,
+    @Inject(ApprovalsService) private readonly approvals: ApprovalsService,
   ) {}
 
   /** A runner must register before it can claim or report anything. */
@@ -164,11 +167,38 @@ export class RunnerGatewayService {
     if (note) {
       await this.runs.recordEvent(runId, 'log', { message: note, source: 'heartbeat' });
     }
+    const pending = await this.approvals.approvalsForHeartbeat(runId);
     return {
       runId: run.id,
       status: run.status,
       cancelRequested: run.cancelRequestedAt !== null,
+      approvals: pending.map((approval) => ({
+        approvalId: approval.id,
+        action: approval.action,
+        status: approval.status,
+      })),
     };
+  }
+
+  /**
+   * Request approval for a high-risk action (docs/tasks.md T8.3, #37): the
+   * runner is about to run a shell command on the executor's behalf, push
+   * the agent branch, or perform another operation it flags as destructive.
+   * Transitions the run to `needs_approval` (the runner should stop and poll
+   * `runHeartbeat` for the decision — see `RunHeartbeatResponseDto.approvals`)
+   * unless the run is already there (idempotent under retry).
+   */
+  async requestApproval(
+    runner: Runner,
+    runId: string,
+    input: RequestApprovalInput,
+  ): Promise<ApprovalDto> {
+    const run = await this.requireOwnedRun(runner, runId);
+    await this.runners.touchHeartbeat(runner.id);
+    if (run.status !== 'needs_approval') {
+      await this.runs.applyStatus(run, 'needs_approval');
+    }
+    return this.approvals.request(runId, input);
   }
 
   /** Idle heartbeat (no run in flight) — keeps the runner marked online. */

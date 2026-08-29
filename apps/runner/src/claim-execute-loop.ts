@@ -27,6 +27,16 @@ export interface ClaimExecuteLoopOptions {
    * behavior (docs/tasks.md T5.4, #27).
    */
   getPushConfig?: (projectId: string) => PushConfig | undefined;
+  /**
+   * Approval gate for pushing the agent branch (docs/tasks.md T8.3, #37).
+   * When omitted, a push proceeds without an approval gate (pre-#37
+   * behavior) — set this once a project's `push.requireApproval` is enabled.
+   */
+  requestPushApproval?: (
+    runId: string,
+    summary: string,
+    detail?: unknown,
+  ) => Promise<'approved' | 'denied'>;
   onLog?: (message: string) => void;
   onError?: (error: unknown) => void;
   /** Test seam: overrides `setInterval`/`clearInterval`/`setTimeout`/`clearTimeout`. */
@@ -62,6 +72,11 @@ export class ClaimExecuteLoop {
   private readonly executor: AgentExecutor;
   private readonly commitMessageTemplate: string;
   private readonly getPushConfig: (projectId: string) => PushConfig | undefined;
+  private readonly requestPushApproval?: (
+    runId: string,
+    summary: string,
+    detail?: unknown,
+  ) => Promise<'approved' | 'denied'>;
   private readonly onLog: (message: string) => void;
   private readonly onError: (error: unknown) => void;
   private readonly setIntervalImpl: typeof setInterval;
@@ -79,6 +94,7 @@ export class ClaimExecuteLoop {
     this.executor = options.executor;
     this.commitMessageTemplate = options.commitMessageTemplate ?? DEFAULT_COMMIT_MESSAGE_TEMPLATE;
     this.getPushConfig = options.getPushConfig ?? (() => undefined);
+    this.requestPushApproval = options.requestPushApproval;
     this.onLog = options.onLog ?? (() => {});
     this.onError = options.onError ?? (() => {});
     this.setIntervalImpl = options.setIntervalImpl ?? setInterval;
@@ -247,31 +263,56 @@ export class ClaimExecuteLoop {
 
         const pushConfig = this.getPushConfig(work.project.id);
         if (pushConfig?.enabled) {
-          try {
-            const pushResult = await worktreeMgr.push(worktree, {
-              remote: pushConfig.remote,
-              protectedBranches: pushConfig.protectedBranches,
-            });
-            if (pushResult.pushed) {
-              artifacts.push({
-                type: 'commit',
-                title: `pushed ${pushResult.branch} to ${pushResult.remote}`,
-                metadata: {
-                  sha,
-                  branch: pushResult.branch,
-                  remote: pushResult.remote,
-                  pushed: true,
-                },
-              });
+          const pushSummary = `push ${worktree.branch} to ${pushConfig.remote}`;
+          let approvedToPush = true;
+          if (pushConfig.requireApproval) {
+            if (!this.requestPushApproval) {
+              this.onLog(
+                `push skipped: requireApproval is set but no approval gate is configured (${pushSummary})`,
+              );
+              approvedToPush = false;
             } else {
-              this.onLog(`push skipped: ${pushResult.reason ?? 'unknown reason'}`);
+              await this.reportStatus(runId, 'needs_approval');
+              const decision = await this.requestPushApproval(runId, pushSummary, {
+                branch: worktree.branch,
+                remote: pushConfig.remote,
+              });
+              approvedToPush = decision === 'approved';
+              if (!approvedToPush) {
+                this.onLog(`push denied by approval gate: ${pushSummary}`);
+              } else {
+                await this.reportStatus(runId, 'publishing');
+              }
             }
-          } catch (error) {
-            // A refused/failed push must not silently look like success — log
-            // it and let evidence rules (missing `pull_request`) surface the
-            // gap rather than throwing away the run's other artifacts.
-            this.onError(error);
-            this.onLog(`push failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+
+          if (approvedToPush) {
+            try {
+              const pushResult = await worktreeMgr.push(worktree, {
+                remote: pushConfig.remote,
+                protectedBranches: pushConfig.protectedBranches,
+              });
+              if (pushResult.pushed) {
+                artifacts.push({
+                  type: 'commit',
+                  title: `pushed ${pushResult.branch} to ${pushResult.remote}`,
+                  metadata: {
+                    sha,
+                    branch: pushResult.branch,
+                    remote: pushResult.remote,
+                    pushed: true,
+                  },
+                });
+              } else {
+                this.onLog(`push skipped: ${pushResult.reason ?? 'unknown reason'}`);
+              }
+            } catch (error) {
+              // A refused/failed push must not silently look like success — log
+              // it and let evidence rules (missing `pull_request`) surface the
+              // gap rather than throwing away the run's other artifacts.
+              this.onError(error);
+              this.onLog(`push failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
           }
         }
       }

@@ -46,6 +46,31 @@ export interface ExecutorEventSink {
   error(message: string, code?: string): Promise<void>;
 }
 
+/**
+ * Approval gate for high-risk actions the executor asks the client to permit
+ * (docs/tasks.md T8.3, #37) — currently only the ACP `session/request_permission`
+ * request, i.e. the executor wanting to run a shell command / tool call.
+ *
+ * `OpenCodeExecutor` calls this once per permission request and awaits the
+ * decision before responding to the agent, so the agent process is blocked
+ * (not killed) while a human reviews the request. The default
+ * `DenyingApprovalGate` preserves the pre-#37 behavior of denying by default
+ * when no gate is wired up — the Runner supplies a real gate that requests
+ * approval from the Control Server and polls for the decision.
+ */
+export interface ApprovalGate {
+  requestShellApproval(input: { runId: string; summary: string; detail: unknown }): Promise<
+    'approved' | 'denied'
+  >;
+}
+
+/** Denies every request — the safe default when no real gate is configured. */
+export class DenyingApprovalGate implements ApprovalGate {
+  async requestShellApproval(): Promise<'approved' | 'denied'> {
+    return 'denied';
+  }
+}
+
 /** Core executor abstraction. MVP has a single implementation: OpenCode via ACP. */
 export interface AgentExecutor {
   readonly id: string;
@@ -70,6 +95,12 @@ export interface OpenCodeExecutorOptions {
    * inject a fake handle backed by an in-process `AgentApp`.
    */
   launch?: (options: AcpLauncherOptions) => AcpProcessHandle;
+  /**
+   * Approval gate for ACP `session/request_permission` calls (docs/tasks.md
+   * T8.3, #37). Defaults to `DenyingApprovalGate` (deny everything) when not
+   * provided, matching the pre-#37 safe default.
+   */
+  approvalGate?: ApprovalGate;
 }
 
 const DEFAULT_TIMEOUT_MS = 30 * 60_000;
@@ -101,6 +132,7 @@ export class OpenCodeExecutor implements AgentExecutor {
   private readonly env?: Record<string, string | undefined>;
   private readonly timeoutMs: number;
   private readonly launch: (options: AcpLauncherOptions) => AcpProcessHandle;
+  private readonly approvalGate: ApprovalGate;
   private readonly activeRuns = new Map<string, ActiveRun>();
 
   constructor(options: OpenCodeExecutorOptions = {}) {
@@ -109,6 +141,7 @@ export class OpenCodeExecutor implements AgentExecutor {
     this.env = options.env;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.launch = options.launch ?? launchAcpProcess;
+    this.approvalGate = options.approvalGate ?? new DenyingApprovalGate();
   }
 
   async canRun(input: ExecutorRunInput): Promise<ExecutorReadiness> {
@@ -143,7 +176,7 @@ export class OpenCodeExecutor implements AgentExecutor {
     this.pipeStderr(handle, sink);
 
     const clientApp = acp.client({ name: 'agentdock-runner' });
-    registerClientHandlers(clientApp, sink);
+    registerClientHandlers(clientApp, sink, this.approvalGate, input.runId);
 
     let timedOut = false;
     const timeout = setTimeout(() => {
@@ -277,12 +310,30 @@ function mapStopReasonToResult(stopReason: acp.StopReason | undefined): Executor
 }
 
 /** Registers the ACP client-side handlers required by OpenCode over ACP. */
-function registerClientHandlers(clientApp: acp.ClientApp, sink: ExecutorEventSink): acp.ClientApp {
+function registerClientHandlers(
+  clientApp: acp.ClientApp,
+  sink: ExecutorEventSink,
+  approvalGate: ApprovalGate,
+  runId: string,
+): acp.ClientApp {
   return clientApp
     .onRequest(acp.CLIENT_METHODS.session_request_permission, async ({ params }) => {
-      // MVP: no interactive approval UI wired yet (docs/tasks.md T8.3). Deny by
-      // default so the agent cannot silently perform high-risk actions.
-      await sink.log(`permission requested: ${JSON.stringify(params.toolCall?.title ?? params)}`);
+      const summary = describePermissionRequest(params);
+      await sink.log(`permission requested: ${summary}`);
+
+      const decision = await approvalGate
+        .requestShellApproval({ runId, summary, detail: params })
+        .catch(() => 'denied' as const);
+
+      await sink.log(`permission ${decision}: ${summary}`);
+      // Requesting approval moves the run to `needs_approval` server-side
+      // (docs/tasks.md T8.3, #37); report back to `running` now that a
+      // decision has been made so the run's visible status doesn't stay
+      // stuck on `needs_approval` for the rest of the executor's work.
+      await sink.status('running').catch(() => {});
+      if (decision === 'denied') {
+        return { outcome: { outcome: 'cancelled' as const } };
+      }
       const firstOption = params.options[0];
       return {
         outcome: firstOption
@@ -296,6 +347,13 @@ function registerClientHandlers(clientApp: acp.ClientApp, sink: ExecutorEventSin
     .onRequest(acp.CLIENT_METHODS.fs_write_text_file, async () => {
       throw new Error('fs.writeTextFile not supported: client capability disabled');
     });
+}
+
+/** Human-readable summary of a `session/request_permission` call, for logs/approvals. */
+function describePermissionRequest(params: {
+  toolCall?: { title?: string | null };
+}): string {
+  return params.toolCall?.title ?? JSON.stringify(params);
 }
 
 /** Bridges a single ACP `SessionUpdate` to the executor event sink. */
