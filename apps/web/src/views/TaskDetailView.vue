@@ -9,6 +9,7 @@ import ApprovalPanel from '../components/ApprovalPanel.vue';
 import LogViewer from '../components/LogViewer.vue';
 import RunTimeline from '../components/RunTimeline.vue';
 import StatusBadge from '../components/StatusBadge.vue';
+import { Button } from '../components/ui/button';
 import { useRunEvents } from '../composables/useRunEvents';
 import { TERMINAL_RUN_STATUSES, type ArtifactDto, type RunEventDto } from '../types';
 
@@ -128,6 +129,27 @@ function confirmCancel() {
   }
 }
 
+// Retry a failed run (docs/tasks.md T9.2 / #39; UI entry point T7.7 / #61 —
+// requirements.md US-05 requires a retry entry on the failure view).
+const retryError = ref<string | null>(null);
+const retryMutation = useMutation({
+  mutationFn: () => runsApi.retry(latestRun.value?.id as string),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['task', props.id] });
+  },
+  onError: (err: unknown) => {
+    retryError.value = err instanceof ApiError ? err.message : '重试失败';
+  },
+});
+
+const canRetry = computed(() => latestRun.value?.status === 'failed');
+
+function retryRun() {
+  retryError.value = null;
+  if (!latestRun.value) return;
+  retryMutation.mutate();
+}
+
 function formatTime(iso?: string): string {
   return iso ? new Date(iso).toLocaleString() : '—';
 }
@@ -150,25 +172,38 @@ function formatTime(iso?: string): string {
         </div>
         <p class="prompt-text">{{ taskQuery.data.value.prompt }}</p>
         <div class="row action-row">
-          <button
-            class="btn btn-danger"
+          <Button
+            variant="destructive"
             type="button"
+            class="min-h-11"
             :disabled="!canCancel || cancelMutation.isPending.value"
             @click="confirmCancel"
           >
             {{ cancelMutation.isPending.value ? '取消中…' : '取消任务' }}
-          </button>
-          <a
+          </Button>
+          <Button
+            v-if="canRetry"
+            type="button"
+            class="min-h-11"
+            :disabled="retryMutation.isPending.value"
+            @click="retryRun"
+          >
+            {{ retryMutation.isPending.value ? '重试中…' : '重试' }}
+          </Button>
+          <Button
             v-if="pullRequests.length && pullRequests[0].uri"
+            as="a"
+            variant="outline"
+            class="min-h-11"
             :href="pullRequests[0].uri"
             target="_blank"
             rel="noopener noreferrer"
-            class="btn btn-primary"
           >
             打开 PR
-          </a>
+          </Button>
         </div>
         <p v-if="cancelError" class="error-text">{{ cancelError }}</p>
+        <p v-if="retryError" class="error-text">{{ retryError }}</p>
 
         <ApprovalPanel :run-id="activeRunId" :events="allEvents" />
       </div>
@@ -204,6 +239,8 @@ function formatTime(iso?: string): string {
           <dd v-if="latestRun">{{ latestRun.runnerId ?? '未分配' }}</dd>
           <dt v-if="latestRun">分支</dt>
           <dd v-if="latestRun">{{ latestRun.branch ?? '—' }}</dd>
+          <dt v-if="latestRun?.errorCode">错误码</dt>
+          <dd v-if="latestRun?.errorCode">{{ latestRun.errorCode }}</dd>
           <dt v-if="latestRun?.errorMessage">错误信息</dt>
           <dd v-if="latestRun?.errorMessage">{{ latestRun.errorMessage }}</dd>
         </dl>

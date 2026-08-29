@@ -457,6 +457,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ Dashboard, task list, task detail (timeline/output/logs/diff/tests/artifacts), mobile UX
   - ✅ Projects (CRUD + Runner mapping + repository binding, via #28; webhook-triggered dispatch now live via #29; Tailwind v4 + shadcn-vue UI)
   - ✅ Dispatch a task from the console ([#59](https://github.com/bao-linfeng/AgentDock/issues/59), "new task" form in `TasksView.vue`)
+  - ✅ Failure diagnosis: retry entry point + `errorCode` on the task detail view ([#61](https://github.com/bao-linfeng/AgentDock/issues/61))
 - ✅ **Milestone 8 — Governance** ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))
   - ✅ Evidence engine & evidence-based completion decision ([#4](https://github.com/bao-linfeng/AgentDock/issues/4))
   - ✅ Approval model ([#37](https://github.com/bao-linfeng/AgentDock/issues/37)): shell / push / destructive-operation approval gates, `needs_approval` wired end to end through the Runner (`apps/runner/src/approval-gate.ts`) and Web console (`apps/server/src/approvals`, `apps/web/src/components/ApprovalPanel.vue`)
