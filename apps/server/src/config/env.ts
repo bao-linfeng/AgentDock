@@ -22,6 +22,13 @@ export interface ServerConfig {
     webhookSecret?: string;
     appId?: string;
     privateKey?: string;
+    /**
+     * GitHub logins allowed to trigger tasks via `@agent` mentions
+     * (requirements.md §6.2: "Actor 在 Allowlist"). `undefined`/empty means
+     * "allow any non-bot actor" — acceptable for a single-user MVP, but
+     * operators exposed to a shared repo should set this.
+     */
+    actorAllowlist?: string[];
   };
 }
 
@@ -54,6 +61,7 @@ const EnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: optionalString,
   GITHUB_APP_ID: optionalString,
   GITHUB_PRIVATE_KEY: optionalString,
+  GITHUB_ACTOR_ALLOWLIST: optionalString,
 });
 
 function assertUsableToken(name: string, value: string): void {
@@ -101,6 +109,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
       webhookSecret: raw.GITHUB_WEBHOOK_SECRET,
       appId: raw.GITHUB_APP_ID,
       privateKey: raw.GITHUB_PRIVATE_KEY,
+      actorAllowlist: raw.GITHUB_ACTOR_ALLOWLIST?.split(',')
+        .map((login) => login.trim())
+        .filter((login) => login.length > 0),
     },
   };
 }

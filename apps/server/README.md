@@ -60,6 +60,7 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 | `DELETE /runners/:id/projects/:projectId` | Remove a mapping                                     |
 | `GET /events/runs/:id?afterSeq=`          | SSE stream: replay from DB, then live events         |
 | `GET /github/status`                      | Whether the GitHub integration is configured         |
+| `POST /github/webhook`                    | GitHub webhook receiver (public; HMAC-verified — see below) |
 
 ## Runner Gateway
 
@@ -100,3 +101,33 @@ Notes:
   existing task (`deduplicated: true`) instead of creating a duplicate; claim
   is a single conditional `UPDATE`, and completing an already-terminal run
   returns 409 instead of double-applying artifacts/events.
+
+## GitHub Webhook (`POST /github/webhook`)
+
+Implements T6.2 (#29). This route is intentionally **not** behind
+`ApiTokenGuard` — GitHub cannot send our API token — so authenticity comes
+from verifying the `X-Hub-Signature-256` header instead:
+
+1. Reject (401) if `GITHUB_WEBHOOK_SECRET` is not configured, or if the
+   HMAC-SHA256 signature over the exact raw request body does not match
+   (constant-time compare via `node:crypto`'s `timingSafeEqual`).
+2. Dedupe by `X-GitHub-Delivery` (`tasks.deliveryId`, unique): a delivery GitHub
+   retries (timeout / non-2xx) short-circuits to `{ status: 'deduplicated' }`
+   before the payload is even parsed.
+3. Unsupported events (e.g. `ping`) return `{ status: 'ignored' }` with a 200 —
+   the signature already proves the sender is GitHub, so we accept rather than
+   make GitHub retry an event we don't model.
+4. The event's `repository.full_name` must resolve to a `Repository` row bound
+   to a `Project` (`repositories` table, `#28`); otherwise the delivery is
+   ignored.
+5. `@agentdock/github-adapter`'s `normalizeGitHubEvent` extracts the actor,
+   trigger mention, and dedupe `sourceRef`; the actor must pass
+   `GITHUB_ACTOR_ALLOWLIST` when configured (requirements.md §6.2). A `null`
+   result (no mention, bot self-callback, disallowed actor) is ignored.
+6. Otherwise `TasksService.create` queues the task, reusing its own
+   `sourceRef`/`deliveryId` unique-constraint dedupe as a second line of
+   defense against a race between two concurrent deliveries.
+
+`NestFactory.create(AppModule, { rawBody: true })` keeps `request.rawBody`
+(the exact bytes GitHub sent) available next to the parsed JSON body — the
+signature would not match a body that was parsed and re-serialized.

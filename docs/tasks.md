@@ -31,13 +31,13 @@
 | | T5.3 验证（测试命令） | ✅ | #1 / PR #10 |
 | | T5.4 提交 / 推送 | ✅ | #27 |
 | M6 GitHub | T6.1 App / Token 接入 | ✅ | #28 |
-| | T6.2 Webhook 验签与去重 | ⬜ | #29 |
+| | T6.2 Webhook 验签与去重 | ✅ | #29 / PR #49 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
 | | T6.5 创建 PR | ⬜ | #30 |
 | | T6.6 回调评论 | ⬜ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
-| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 触发仍待 #29） |
+| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
 | | T7.3 Task List | ✅ | #34 |
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
@@ -203,7 +203,8 @@ cancelled
 - [x] TasksModule
 - [x] RunsModule
 - [x] RunnersModule
-- [x] GitHubModule（仅 `GET /github/status`；webhook 路由随 #29 落地）
+- [x] GitHubModule（`GET /github/status`、`GET /github/installations`、
+  `POST /github/webhook`、`repositories` CRUD；验签/去重见 #29，App 鉴权/仓库绑定见 #28）
 - [x] EventsModule（SSE：先回放 DB 事件，再推送实时事件）
 
 ## T2.2 Prisma Schema
@@ -333,11 +334,11 @@ local workspace path
 >
 > **[范围边界]** 本任务只做本地 `git commit`（满足 governance 的 `commit`
 > 证据），**不做** `git push` 与 PR 创建——`git push`（推送 agent 分支到已配置
-> 的 remote，禁止直推默认/受保护分支）已由 #27（T5.4）补齐，PR 创建仍是
-> #30（T6.5）的范围，因为仓库目前还没有 GitHub App/Token 接入（#28）可用来
-> 调 GitHub API 开 PR。因此对 `fix`/`implement` 意图的任务，若最终没有额外产出
-> `pull_request` artifact，`decideCompletion` 仍会按证据规则判定为 `failed`
-> （`errorCode: 'evidence_incomplete'`），这是预期行为，等 #30 落地后
+> 的 remote，禁止直推默认/受保护分支）已由 #27（T5.4，PR #47）补齐，GitHub
+> App/Token 接入（#28，PR #48）与 webhook 验签/去重（#29，PR #49）均已完成；
+> PR 创建仍是 #30（T6.5）的范围。因此对 `fix`/`implement` 意图的任务，若最终
+> 没有额外产出 `pull_request` artifact，`decideCompletion` 仍会按证据规则判定
+> 为 `failed`（`errorCode: 'evidence_incomplete'`），这是预期行为，等 #30 落地后
 > 会自然满足。`apps/runner/src/index.ts` 中已将该循环与心跳循环并行启动。
 
 ---
@@ -500,10 +501,20 @@ RunEvent
 
 ## T6.2 Webhook Verification
 
-> ⬜ 待办（#29）
+> ✅ 已完成（#29，`apps/server/src/github/{webhook-signature,webhook,webhook.dto}.ts`）
 
-- [ ] signature verify
-- [ ] dedupe delivery id
+- [x] signature verify — HMAC-SHA256 over the raw body, `X-Hub-Signature-256`,
+      constant-time compare (`node:crypto.timingSafeEqual`)
+- [x] dedupe delivery id — `X-GitHub-Delivery` checked against `tasks.deliveryId`
+      before parsing the payload, plus `TasksService.create`'s own
+      `sourceRef`/`deliveryId` unique-constraint dedupe as a second line of
+      defense against a race between concurrent deliveries
+- [x] `POST /github/webhook` wired in `GitHubController` (public — no
+      `ApiTokenGuard`, since GitHub cannot send our API token)
+- [x] repo → project resolution via the `repositories` table (unblocks once
+      #28 lands rows there); unbound repos are ignored, not errored
+- [x] actor allowlist enforcement via `GITHUB_ACTOR_ALLOWLIST` (requirements.md
+      §6.2)
 
 ## T6.3 Event Normalizer
 

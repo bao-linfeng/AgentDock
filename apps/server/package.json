@@ -15,6 +15,7 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@agentdock/github-adapter": "workspace:*",
     "@agentdock/protocol": "workspace:*",
     "@agentdock/shared": "workspace:*",
     "@agentdock/task-engine": "workspace:*",
