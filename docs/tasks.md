@@ -37,7 +37,7 @@
 | | T6.5 创建 PR | ✅ | #30（多绑定仓库 PR 目标选择 follow-up 见 #51） |
 | | T6.6 回调评论 | ✅ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
-| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
+| | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成；已迁移为 Tailwind + shadcn-vue） |
 | | T7.3 Task List | ✅ | #34 |
 | | T7.4 Task Detail | ✅ | #35 |
 | | T7.5 Mobile UX | ✅ | #36 |
@@ -651,10 +651,16 @@ webhook 侧的归一化结果，写入 `Task.callbackRepo` /
 
 ## T7.2 Projects
 
-> 🟡 部分完成（#33，`apps/web/src/views/ProjectsView.vue`）
+> ✅ 已完成（#33，`apps/web/src/views/ProjectsView.vue` + `apps/web/src/components/RepositoryBindingPanel.vue`）
+>
+> Repository binding 已随 GitHub App 接入（#28）与 `/projects/:projectId/repositories`
+> 端点落地，`RepositoryBindingPanel.vue` 据此渲染绑定表单/解绑操作，不再是占位提示。
+> `ProjectsView.vue` 已按项目规则第 5/6 条迁移为 Tailwind utility class +
+> shadcn-vue 组件（`Button`/`Input`/`Label`/`Select`/`Dialog`），不再依赖历史
+> `.btn`/`.card`/`.field`/`.modal-backdrop` 自定义类。
 
 - [x] Project list（创建 / 编辑 / 删除）
-- [ ] Repository binding —— Control Server 尚未提供 `/repositories` 端点（依赖 GitHub App 接入，见 #28/#29），前端页面已预留入口并明确标注"尚未开放"，避免伪造 API
+- [x] Repository binding（`RepositoryBindingPanel.vue`，依赖 GitHub App 接入 #28）
 - [x] Runner mapping（`PUT/DELETE /runners/:id/projects/:projectId`）
 
 ## T7.3 Task List

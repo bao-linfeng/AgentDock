@@ -5,6 +5,23 @@ import RepositoryBindingPanel from '../components/RepositoryBindingPanel.vue';
 import { projectsApi } from '../api/projects';
 import { runnersApi } from '../api/runners';
 import { ApiError } from '../api/client';
+import { Button } from '../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import type { CreateProjectInput, ProjectDto, RunnerProjectDto } from '../types';
 
 // Projects (docs/tasks.md T7.2 / issue #33): list, create/edit, runner mapping.
@@ -184,30 +201,39 @@ runnersQuery.suspense().then(refreshMappings);
 </script>
 
 <template>
-  <div class="page stack">
-    <div class="row-between">
-      <h1>项目</h1>
-      <button class="btn btn-primary" type="button" @click="startCreate">新建项目</button>
+  <div class="flex flex-col gap-6 p-4 sm:p-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-semibold text-foreground">项目</h1>
+      <Button type="button" @click="startCreate">新建项目</Button>
     </div>
 
-    <p v-if="projectsQuery.isLoading.value" class="muted">加载中…</p>
-    <p v-else-if="!projectsQuery.data.value?.length" class="empty-state">
+    <p v-if="projectsQuery.isLoading.value" class="text-muted-foreground">加载中…</p>
+    <p
+      v-else-if="!projectsQuery.data.value?.length"
+      class="rounded-md border border-dashed p-6 text-center text-muted-foreground"
+    >
       还没有项目，点击「新建项目」创建第一个。
     </p>
 
-    <ul v-else class="stack project-list">
-      <li v-for="project in projectsQuery.data.value" :key="project.id" class="card stack">
-        <div class="row-between">
+    <ul v-else class="flex flex-col gap-4">
+      <li
+        v-for="project in projectsQuery.data.value"
+        :key="project.id"
+        class="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm"
+      >
+        <div class="flex items-center justify-between">
           <div>
-            <strong>{{ project.name }}</strong>
-            <div class="muted">workspaceKey: {{ project.workspaceKey }}</div>
+            <strong class="text-foreground">{{ project.name }}</strong>
+            <div class="text-sm text-muted-foreground">workspaceKey: {{ project.workspaceKey }}</div>
           </div>
-          <div class="row">
-            <button class="btn" type="button" @click="startEdit(project)">编辑</button>
-            <button class="btn btn-danger" type="button" @click="confirmDelete(project)">删除</button>
+          <div class="flex gap-2">
+            <Button variant="outline" size="sm" type="button" @click="startEdit(project)">编辑</Button>
+            <Button variant="destructive" size="sm" type="button" @click="confirmDelete(project)">
+              删除
+            </Button>
           </div>
         </div>
-        <div class="muted">
+        <div class="text-sm text-muted-foreground">
           默认分支：{{ project.defaultBranch }}
           <span v-if="project.testCommand"> · 测试命令：{{ project.testCommand }}</span>
           <span v-if="project.buildCommand"> · 构建命令：{{ project.buildCommand }}</span>
@@ -215,159 +241,140 @@ runnersQuery.suspense().then(refreshMappings);
 
         <RepositoryBindingPanel :project-id="project.id" />
 
-        <button class="btn mapping-toggle" type="button" @click="toggleExpand(project)">
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          class="self-start text-xs"
+          @click="toggleExpand(project)"
+        >
           {{ expandedProjectId === project.id ? '收起 Runner 映射' : '管理 Runner 映射' }}
-        </button>
+        </Button>
 
-        <div v-if="expandedProjectId === project.id" class="stack mapping-panel">
-          <div v-if="mappingsFor(project.id).length" class="stack">
+        <div
+          v-if="expandedProjectId === project.id"
+          class="flex flex-col gap-3 border-t pt-3 text-sm"
+        >
+          <div v-if="mappingsFor(project.id).length" class="flex flex-col gap-1">
             <div
               v-for="entry in mappingsFor(project.id)"
               :key="entry.mapping.runnerId"
-              class="row-between mapping-row"
+              class="flex items-center justify-between rounded-md border px-3 py-1.5"
             >
               <span>
                 <strong>{{ entry.runnerName }}</strong>
-                <span class="muted"> · {{ entry.mapping.workspacePath }}</span>
-                <span v-if="!entry.mapping.enabled" class="muted"> (已禁用)</span>
+                <span class="text-muted-foreground"> · {{ entry.mapping.workspacePath }}</span>
+                <span v-if="!entry.mapping.enabled" class="text-muted-foreground"> (已禁用)</span>
               </span>
-              <button
-                class="btn btn-danger"
+              <Button
+                variant="destructive"
+                size="sm"
                 type="button"
                 @click="removeMappingMutation.mutate({ runnerId: entry.mapping.runnerId, projectId: project.id })"
               >
                 移除
-              </button>
+              </Button>
             </div>
           </div>
-          <p v-else class="muted">该项目尚未映射到任何 Runner。</p>
+          <p v-else class="text-muted-foreground">该项目尚未映射到任何 Runner。</p>
 
-          <div class="stack add-mapping">
-            <div class="field">
-              <label>Runner</label>
-              <select v-model="mappingRunnerId">
-                <option value="" disabled>选择 Runner</option>
-                <option v-for="runner in runnersQuery.data.value" :key="runner.id" :value="runner.id">
-                  {{ runner.name }}
-                </option>
-              </select>
+          <div class="flex flex-col gap-2 border-t border-dashed pt-3">
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div class="flex flex-col gap-1">
+                <Label>Runner</Label>
+                <Select v-model="mappingRunnerId">
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="选择 Runner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="runner in runnersQuery.data.value"
+                      :key="runner.id"
+                      :value="runner.id"
+                    >
+                      {{ runner.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="flex flex-col gap-1">
+                <Label>该 Runner 本机的工作区绝对路径</Label>
+                <Input v-model="mappingPath" type="text" placeholder="例如 C:\work\my-project" />
+              </div>
             </div>
-            <div class="field">
-              <label>该 Runner 本机的工作区绝对路径</label>
-              <input v-model="mappingPath" type="text" placeholder="例如 C:\\work\\my-project" />
-            </div>
-            <p v-if="mappingError" class="error-text">{{ mappingError }}</p>
-            <button
-              class="btn btn-primary"
+            <p v-if="mappingError" class="text-sm text-destructive">{{ mappingError }}</p>
+            <Button
               type="button"
+              size="sm"
+              class="self-start"
               :disabled="upsertMappingMutation.isPending.value"
               @click="addMapping(project.id)"
             >
               保存映射
-            </button>
+            </Button>
           </div>
         </div>
       </li>
     </ul>
 
-    <p v-if="deleteError" class="error-text">{{ deleteError }}</p>
+    <p v-if="deleteError" class="text-sm text-destructive">{{ deleteError }}</p>
 
-    <div v-if="showForm" class="modal-backdrop" @click.self="showForm = false">
-      <form class="card stack modal-form" @submit.prevent="saveMutation.mutate()">
-        <h2>{{ editingId ? '编辑项目' : '新建项目' }}</h2>
-        <div class="field">
-          <label for="name">名称</label>
-          <input id="name" v-model="form.name" type="text" required maxlength="120" />
-        </div>
-        <div class="field">
-          <label for="workspaceKey">workspaceKey（逻辑标识，仅限字母/数字/._-）</label>
-          <input
-            id="workspaceKey"
-            v-model="form.workspaceKey"
-            type="text"
-            required
-            maxlength="120"
-            pattern="^[A-Za-z0-9._-]+$"
-          />
-        </div>
-        <div class="field">
-          <label for="defaultBranch">默认分支</label>
-          <input id="defaultBranch" v-model="form.defaultBranch" type="text" maxlength="200" />
-        </div>
-        <div class="field">
-          <label for="testCommand">测试命令（可选）</label>
-          <input id="testCommand" v-model="form.testCommand" type="text" maxlength="500" />
-        </div>
-        <div class="field">
-          <label for="buildCommand">构建命令（可选）</label>
-          <input id="buildCommand" v-model="form.buildCommand" type="text" maxlength="500" />
-        </div>
-        <p v-if="formError" class="error-text">{{ formError }}</p>
-        <div class="row">
-          <button class="btn btn-primary" type="submit" :disabled="saveMutation.isPending.value">
-            {{ saveMutation.isPending.value ? '保存中…' : '保存' }}
-          </button>
-          <button class="btn" type="button" @click="showForm = false">取消</button>
-        </div>
-      </form>
-    </div>
+    <Dialog v-model:open="showForm">
+      <DialogContent class="sm:max-w-[480px]">
+        <form class="flex flex-col gap-4" @submit.prevent="saveMutation.mutate()">
+          <DialogHeader>
+            <DialogTitle>{{ editingId ? '编辑项目' : '新建项目' }}</DialogTitle>
+          </DialogHeader>
+
+          <div class="flex flex-col gap-1.5">
+            <Label for="name">名称</Label>
+            <Input id="name" v-model="form.name" type="text" required maxlength="120" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="workspaceKey">workspaceKey（逻辑标识，仅限字母/数字/._-）</Label>
+            <Input
+              id="workspaceKey"
+              v-model="form.workspaceKey"
+              type="text"
+              required
+              maxlength="120"
+              pattern="^[A-Za-z0-9._-]+$"
+            />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="defaultBranch">默认分支</Label>
+            <Input id="defaultBranch" v-model="form.defaultBranch" type="text" maxlength="200" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="testCommand">测试命令（可选）</Label>
+            <Input
+              id="testCommand"
+              :model-value="form.testCommand ?? ''"
+              type="text"
+              maxlength="500"
+              @update:model-value="(v) => (form.testCommand = String(v))"
+            />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="buildCommand">构建命令（可选）</Label>
+            <Input
+              id="buildCommand"
+              :model-value="form.buildCommand ?? ''"
+              type="text"
+              maxlength="500"
+              @update:model-value="(v) => (form.buildCommand = String(v))"
+            />
+          </div>
+          <p v-if="formError" class="text-sm text-destructive">{{ formError }}</p>
+
+          <DialogFooter>
+            <Button variant="outline" type="button" @click="showForm = false">取消</Button>
+            <Button type="submit" :disabled="saveMutation.isPending.value">
+              {{ saveMutation.isPending.value ? '保存中…' : '保存' }}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
-
-<style scoped>
-.project-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.mapping-toggle {
-  align-self: flex-start;
-  font-size: 0.85rem;
-}
-
-.mapping-panel {
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.75rem;
-}
-
-.mapping-row {
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.add-mapping {
-  border-top: 1px dashed var(--color-border);
-  padding-top: 0.75rem;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 50;
-  padding: 0;
-}
-
-.modal-form {
-  width: 100%;
-  max-width: 480px;
-  border-radius: var(--radius) var(--radius) 0 0;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-@media (min-width: 768px) {
-  .modal-backdrop {
-    align-items: center;
-    padding: 1rem;
-  }
-
-  .modal-form {
-    border-radius: var(--radius);
-  }
-}
-</style>
