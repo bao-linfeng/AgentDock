@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GitHubAppService } from './github-app.service.js';
+import { resolveTargetRepository } from './repository-resolver.js';
 
 export interface PullRequestResult {
   number: number;
@@ -38,9 +39,12 @@ function buildTitle(prompt: string): string {
  * completion (#4) can see the resulting `pull_request` artifact before the
  * final `succeeded`/`failed` decision.
  *
- * Requires the task's project to have exactly one bound repository — with
- * more than one, which repository a Run's branch should open a PR against is
- * ambiguous, so this returns `null` instead of guessing.
+ * Which of the project's bound repositories to target is resolved by
+ * `resolveTargetRepository` (#51): GitHub-sourced tasks carry the originating
+ * `callbackRepo`, so multi-repository projects are supported as long as the
+ * task names one of the bound repositories; tasks with no `callbackRepo`
+ * (typically `source: 'web'`) still require the project to have exactly one
+ * bound repository, since there is nothing to disambiguate with.
  */
 @Injectable()
 export class PullRequestService {
@@ -72,17 +76,13 @@ export class PullRequestService {
     if (!run) return null;
 
     const { project } = run.task;
-    if (project.repositories.length !== 1) {
-      if (project.repositories.length > 1) {
-        this.logger.warn(
-          `project ${project.id} has ${project.repositories.length} bound repositories; ` +
-            `skipping automatic PR creation for run ${runId} (ambiguous target)`,
-        );
-      }
-      return null;
-    }
-
-    const repository = project.repositories[0];
+    const repository = resolveTargetRepository(
+      project.repositories,
+      run.task.callbackRepo,
+      this.logger,
+      `run ${runId}`,
+    );
+    if (!repository) return null;
     if (!repository.installationId) return null;
 
     try {

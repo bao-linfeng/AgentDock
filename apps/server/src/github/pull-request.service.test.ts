@@ -14,6 +14,7 @@ function fakeRun(overrides: Record<string, unknown> = {}) {
     task: {
       id: 'task_1',
       prompt: 'Fix the payment callback bug',
+      callbackRepo: null,
       project: {
         id: 'proj_1',
         defaultBranch: 'main',
@@ -47,19 +48,25 @@ describe('PullRequestService.openForRun', () => {
   it('returns null when the project has no bound repository', async () => {
     const githubApp = { isConfigured: () => true } as unknown as GitHubAppService;
     const run = fakeRun({
-      task: { id: 'task_1', prompt: 'p', project: { defaultBranch: 'main', repositories: [] } },
+      task: {
+        id: 'task_1',
+        prompt: 'p',
+        callbackRepo: null,
+        project: { defaultBranch: 'main', repositories: [] },
+      },
     });
     const prisma = fakePrisma({ taskRun: { findUnique: vi.fn().mockResolvedValue(run) } });
     const service = new PullRequestService(prisma, githubApp);
     expect(await service.openForRun('run_1', 'agent/task_1-fix')).toBeNull();
   });
 
-  it('returns null when the project has more than one bound repository (ambiguous)', async () => {
+  it('returns null when the project has more than one bound repository and no callbackRepo to disambiguate', async () => {
     const githubApp = { isConfigured: () => true } as unknown as GitHubAppService;
     const run = fakeRun({
       task: {
         id: 'task_1',
         prompt: 'p',
+        callbackRepo: null,
         project: {
           defaultBranch: 'main',
           repositories: [
@@ -74,12 +81,73 @@ describe('PullRequestService.openForRun', () => {
     expect(await service.openForRun('run_1', 'agent/task_1-fix')).toBeNull();
   });
 
+  it('opens a PR against the repository named by callbackRepo when the project has multiple bound repositories (#51)', async () => {
+    const createPullRequest = vi.fn().mockResolvedValue({
+      number: 8,
+      url: 'https://github.com/acme/b/pull/8',
+      title: 'p',
+    });
+    const githubApp = {
+      isConfigured: () => true,
+      createPullRequest,
+    } as unknown as GitHubAppService;
+    const run = fakeRun({
+      task: {
+        id: 'task_1',
+        prompt: 'p',
+        callbackRepo: 'acme/b',
+        project: {
+          defaultBranch: 'main',
+          repositories: [
+            { owner: 'acme', repo: 'a', installationId: 'i1' },
+            { owner: 'acme', repo: 'b', installationId: 'i2' },
+          ],
+        },
+      },
+    });
+    const prisma = fakePrisma({ taskRun: { findUnique: vi.fn().mockResolvedValue(run) } });
+    const service = new PullRequestService(prisma, githubApp);
+
+    const result = await service.openForRun('run_1', 'agent/task_1-fix');
+
+    expect(result).toEqual({
+      number: 8,
+      url: 'https://github.com/acme/b/pull/8',
+      title: 'p',
+      base: 'main',
+      head: 'agent/task_1-fix',
+    });
+    expect(createPullRequest).toHaveBeenCalledWith(
+      'i2',
+      expect.objectContaining({ owner: 'acme', repo: 'b' }),
+    );
+  });
+
+  it('returns null when callbackRepo does not match any of the project bound repositories', async () => {
+    const githubApp = { isConfigured: () => true } as unknown as GitHubAppService;
+    const run = fakeRun({
+      task: {
+        id: 'task_1',
+        prompt: 'p',
+        callbackRepo: 'acme/unbound',
+        project: {
+          defaultBranch: 'main',
+          repositories: [{ owner: 'acme', repo: 'widgets', installationId: 'i1' }],
+        },
+      },
+    });
+    const prisma = fakePrisma({ taskRun: { findUnique: vi.fn().mockResolvedValue(run) } });
+    const service = new PullRequestService(prisma, githubApp);
+    expect(await service.openForRun('run_1', 'agent/task_1-fix')).toBeNull();
+  });
+
   it('returns null when the bound repository has no installationId', async () => {
     const githubApp = { isConfigured: () => true } as unknown as GitHubAppService;
     const run = fakeRun({
       task: {
         id: 'task_1',
         prompt: 'p',
+        callbackRepo: null,
         project: {
           defaultBranch: 'main',
           repositories: [{ owner: 'acme', repo: 'widgets', installationId: null }],

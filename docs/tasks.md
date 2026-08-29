@@ -34,7 +34,7 @@
 | | T6.2 Webhook 验签与去重 | ✅ | #29 / PR #49 |
 | | T6.3 事件归一化 | ✅ | #2 / PR #11 |
 | | T6.4 Mention 触发 | ✅ | #2 / PR #11 |
-| | T6.5 创建 PR | ✅ | #30 |
+| | T6.5 创建 PR | ✅ | #30（多绑定仓库 PR 目标选择 follow-up 见 #51） |
 | | T6.6 回调评论 | ✅ | #31 |
 | M7 Web | T7.1 Dashboard | ✅ | #32（epic #8） |
 | | T7.2 Projects | ✅ | #33（仓库绑定已随 #28 打通；Webhook 验签/去重 #29 已完成） |
@@ -575,10 +575,15 @@ AgentTaskCreateInput
 > `pull_request` artifact，再用 `decideCompletion` 重新判定——评估通过则把
 > 最终状态由 `failed` 改写为 `succeeded`。
 >
-> 仅当该项目**恰好绑定一个** GitHub 仓库、且该仓库记录了
-> `installationId` 时才会尝试开 PR；零个或多个绑定仓库（目标歧义）、
-> App 未配置、或 GitHub API 调用失败，都是静默跳过（记 warning 日志，run 保持
-> 原本的 `failed`），不会让 run 本身报错。对同一分支重复 `complete`
+> 仅当能明确解析出该 run 对应的目标仓库、且该仓库记录了 `installationId`
+> 时才会尝试开 PR；目标仓库的解析规则见 `resolveTargetRepository`
+> （`apps/server/src/github/repository-resolver.ts`，#51 follow-up）：若任务
+> 携带来源仓库 `callbackRepo`（`owner/repo`，仅 `source: 'github'` 的任务有
+> 值），优先匹配该仓库——即使项目绑定了多个仓库也能明确解析；否则（典型为
+> `source: 'web'` 的任务）退回到"项目恰好绑定一个仓库"的旧规则。解析失败
+> （无法匹配、零个绑定仓库、或恰好一个规则下有多个绑定仓库）、App 未配置、
+> 或 GitHub API 调用失败，都是静默跳过（记 warning 日志，run 保持原本的
+> `failed`），不会让 run 本身报错。对同一分支重复 `complete`
 > （如 retry）会先查已存在的 open PR 并直接复用，保持调用幂等。
 >
 > PR 正文包含 `taskId`/`runId` 与截断后的原始 prompt，便于人工追溯来源；标题
@@ -590,9 +595,22 @@ AgentTaskCreateInput
 - [x] head（已推送的 agent 分支）
 - [x] link artifact（`pull_request` RunArtifact，含 PR number/url，供 #4 证据引擎与 Web `ArtifactsPanel` 消费）
 
+### T6.5 follow-up：多绑定仓库项目的 PR 目标选择（#51）
+
+> ✅ 已完成（#51，`apps/server/src/github/repository-resolver.ts`）
+>
+> 修复 #51 报告的问题：项目绑定 0 个或 2 个以上仓库时，原实现直接放弃，
+> `fix`/`implement` 类 Run 会永远卡在 `failed(evidence_incomplete)`。现在
+> `resolveTargetRepository` 优先用任务的 `callbackRepo`（GitHub webhook 触发
+> 时归一化写入的来源仓库）在项目绑定的仓库列表中精确匹配，解决多仓库场景下
+> 的歧义；`source: 'web'` 等没有 `callbackRepo` 的任务，仍要求项目恰好绑定一
+> 个仓库。该解析函数同时被 `PullRequestService.openForRun` 与
+> `RunCallbackService.post` 复用，两者的多仓库支持是一致的。
+
 ## T6.6 GitHub Callback
 
-> ✅ 完成（#31，`apps/server/src/github/run-callback.service.ts`）
+> ✅ 完成（#31，`apps/server/src/github/run-callback.service.ts`；#51 起目标
+> 仓库解析同 T6.5 follow-up）
 
 Run 生命周期状态变化时，向触发该任务的原始 Issue/PR 线程发一条状态回帖评论。
 触发点：`RunnerGatewayService.claim`（picked up）、`RunsService.applyStatus`
@@ -604,8 +622,9 @@ best-effort：调用失败只记 warning 日志，绝不影响 run 本身的状�
 webhook 侧的归一化结果，写入 `Task.callbackRepo` /
 `Task.callbackIssueNumber` / `Task.callbackIsPullRequest`（仅
 `source: 'github'` 的任务会有值；`source: 'web'` 的任务没有回帖目标，静默跳
-过）。与 PR 创建一样，仅当项目**恰好绑定一个**仓库且该仓库记录了
-`installationId` 时才会尝试发帖。
+过）。目标仓库同样通过 `resolveTargetRepository` 解析（#51）：凭
+`callbackRepo` 精确匹配项目绑定的仓库，支持多仓库项目；没有 `callbackRepo`
+时仍要求项目恰好绑定一个仓库。
 
 - [x] picked up（已领取）
 - [x] running（运行中）
