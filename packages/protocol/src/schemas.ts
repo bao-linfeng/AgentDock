@@ -12,13 +12,7 @@ export type TaskIntent = z.infer<typeof TaskIntentSchema>;
  * Task-level status. Kept intentionally coarse; the detailed lifecycle lives on
  * AgentRun (see RunStatus). A task's status is derived from its latest run.
  */
-export const TaskStatusSchema = z.enum([
-  'queued',
-  'running',
-  'succeeded',
-  'failed',
-  'cancelled',
-]);
+export const TaskStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
 export const RunStatusSchema = z.enum(RUN_STATUSES);
