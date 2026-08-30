@@ -2,6 +2,7 @@ import type { ApprovalAction } from '@agentdock/protocol';
 import { redactSecrets } from '@agentdock/shared';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Approval, Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toRunEventDto } from '../runs/runs.service.js';
@@ -51,6 +52,7 @@ export class ApprovalsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RunEventsBus) private readonly bus: RunEventsBus,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
   async requireApproval(id: string): Promise<Approval> {
@@ -113,6 +115,12 @@ export class ApprovalsService {
       },
     });
     await this.publishEvent(approval);
+    await this.audit.record({
+      action: 'approval_requested',
+      source: 'runner',
+      runId,
+      detail: { approvalId: approval.id, gate: input.action, summary: input.summary },
+    });
     return toApprovalDto(approval);
   }
 
@@ -135,6 +143,18 @@ export class ApprovalsService {
       },
     });
     await this.publishEvent(updated);
+    await this.audit.record({
+      action: 'approval_resolved',
+      source: 'web',
+      actor: input.resolvedBy ?? 'web',
+      runId: approval.runId,
+      detail: {
+        approvalId: id,
+        gate: approval.action,
+        decision: input.decision,
+        summary: approval.summary ?? undefined,
+      },
+    });
     return toApprovalDto(updated);
   }
 

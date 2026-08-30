@@ -464,6 +464,7 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ Approval model ([#37](https://github.com/bao-linfeng/AgentDock/issues/37)): shell / push / destructive-operation approval gates, `needs_approval` wired end to end through the Runner (`apps/runner/src/approval-gate.ts`) and Web console (`apps/server/src/approvals`, `apps/web/src/components/ApprovalPanel.vue`)
 - ✅ **Milestone 9 — Stability** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9): [#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Secret redaction ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ✅ Unified audit log ([#63](https://github.com/bao-linfeng/AgentDock/issues/63)): `audit_logs` + `GET /audit-logs`, covering task dispatch/cancel, run claim/complete/retry, approval request/resolution, and runner registration/revocation; detail is redacted before storage
   - ✅ Idempotency: task dedupe keys, atomic claim, guarded complete ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ Runner disconnect handling (heartbeat-timeout sweep fails orphaned runs) · retry (new run id, history kept) ([#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39))
 

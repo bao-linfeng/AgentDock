@@ -1,6 +1,7 @@
 import { RUNNER_OFFLINE_TIMEOUT_MS } from '@agentdock/shared';
 import { Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Runner, RunnerProject } from '@prisma/client';
+import { AuditService } from '../audit/audit.service.js';
 import { hashToken } from '../auth/token.js';
 import { toIso } from '../common/serialize.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -47,7 +48,10 @@ export function toRunnerProjectDto(mapping: RunnerProject): RunnerProjectDto {
 
 @Injectable()
 export class RunnersService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditService) private readonly audit: AuditService,
+  ) {}
 
   /**
    * Register (or refresh) the runner identified by its token. Only the token
@@ -80,6 +84,20 @@ export class RunnersService {
         lastHeartbeatAt: new Date(),
       },
     });
+    if (!existing) {
+      // First registration for this token — later calls are heartbeat refreshes.
+      await this.audit.record({
+        action: 'runner_registered',
+        source: 'runner',
+        actor: runner.name,
+        detail: {
+          runnerId: runner.id,
+          platform: runner.platform ?? undefined,
+          version: runner.version ?? undefined,
+          machineName: runner.machineName ?? undefined,
+        },
+      });
+    }
     return toRunnerDto(runner);
   }
 
@@ -105,6 +123,12 @@ export class RunnersService {
     const runner = await this.prisma.runner.update({
       where: { id },
       data: { revoked: true, revokedAt: new Date(), status: 'offline' },
+    });
+    await this.audit.record({
+      action: 'runner_revoked',
+      source: 'web',
+      actor: 'web',
+      detail: { runnerId: runner.id, runnerName: runner.name },
     });
     return toRunnerDto(runner);
   }

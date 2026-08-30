@@ -51,6 +51,7 @@
 | | T9.2 重试 | ✅ | #39 |
 | | T9.3 幂等 | ✅ | #40 |
 | | T9.4 密钥脱敏 | ✅ | #5 / PR #14 |
+| | T9.5 统一 Audit Log | ✅ | #63 |
 
 > 说明：#6/#7/#8/#9 为里程碑级 epic，#16–#40 为拆细的具体任务，二者以"属于 #N"关联。
 > "明确不做"清单中的能力（见文末）不建 issue。
@@ -963,6 +964,41 @@ required evidence satisfied
 - [x] Provider API key
 - [x] Bearer token
 - [x] 常见 `.env` secrets
+
+## T9.5 Audit Log
+
+> ✅ 已完成（#63，`apps/server/src/audit/`，迁移 `20260830140000_t9_5_audit_log`）
+>
+> 落地 requirements.md §10 最后一条（"Audit Log 必须记录 actor、source、prompt、
+> runner、executor、status、artifact"）。此前这些信息分散在 `run_events`、
+> `tasks.createdBy`、`approvals.resolvedBy` 中，没有统一记录与查询入口，
+> 无法回答"谁在什么时候派发 / 取消 / 审批了什么"。
+>
+> `audit_logs` 是**追加型**扁平表：`projectId` / `taskId` / `runId` 是普通列而不是
+> 外键，审计条目要能在其描述的 task/project 被删除后继续存在。结构化细节写在
+> `detailJson`（prompt 截断到 500 字符，并经 `redactSecrets` 脱敏 ——
+> architecture §14 的"Secret 不写 RunEvent"同样适用）。
+>
+> **写入点**（每次写入都是 best-effort：审计失败只记 warning，绝不影响被审计的
+> 动作本身，与 `RunCallbackService` 一致）：
+> - `task_created`（`TasksService.create`，actor = `createdBy` 或来源）
+> - `task_cancelled`（`TasksService.cancel`）
+> - `run_claimed`（`RunnerGatewayService.claim`，actor = runner 名）
+> - `run_completed`（`RunsService.complete` 与 `failDisconnected`，含 status /
+>   errorCode / executor / artifact 类型列表）
+> - `run_retried`（`RunsService.retry`）
+> - `approval_requested` / `approval_resolved`（`ApprovalsService`）
+> - `runner_registered`（首次注册）/ `runner_revoked`
+>
+> 查询：`GET /audit-logs`（`ApiTokenGuard`，支持 `action` / `source` / `taskId` /
+> `runId` / `projectId` 过滤 + `limit`/`offset` 分页，按时间倒序）。
+> `AuditModule` 声明为 `@Global`，避免各功能模块之间为了写审计产生循环依赖。
+
+- [x] `audit_logs` 表 + 迁移
+- [x] 关键动作写审计（task / run / approval / runner）
+- [x] `GET /audit-logs` 过滤与分页
+- [x] 脱敏后落库
+- [x] 单测覆盖写入、失败不抛错、查询过滤
 
 ---
 

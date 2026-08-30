@@ -2,6 +2,7 @@ import type { TaskIntent, TaskSource, TaskStatus } from '@agentdock/protocol';
 import { isTerminal } from '@agentdock/protocol';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Task, TaskRun } from '@prisma/client';
+import { AuditService, auditPromptExcerpt } from '../audit/audit.service.js';
 import { toIso } from '../common/serialize.js';
 import { PrismaService, isUniqueConstraintError } from '../prisma/prisma.service.js';
 import { RunsService, toRunDto } from '../runs/runs.service.js';
@@ -32,6 +33,7 @@ export class TasksService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RunsService) private readonly runs: RunsService,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
   /**
@@ -67,6 +69,22 @@ export class TasksService {
       await this.runs.recordEvent(created.run.id, 'log', {
         message: `task queued from ${input.source}`,
         intent: input.intent,
+      });
+
+      // Audit trail (docs/requirements.md §10, #63): who dispatched what.
+      await this.audit.record({
+        action: 'task_created',
+        source: input.source,
+        actor: input.createdBy ?? input.source,
+        projectId: input.projectId,
+        taskId: created.task.id,
+        runId: created.run.id,
+        detail: {
+          intent: input.intent,
+          prompt: auditPromptExcerpt(input.prompt),
+          sourceRef: input.sourceRef,
+          executor: created.run.executor,
+        },
       });
 
       return {
@@ -130,6 +148,15 @@ export class TasksService {
     } else if (task.status !== 'cancelled') {
       await this.prisma.task.update({ where: { id }, data: { status: 'cancelled' } });
     }
+    await this.audit.record({
+      action: 'task_cancelled',
+      source: 'web',
+      actor: 'web',
+      projectId: task.projectId,
+      taskId: task.id,
+      runId: activeRun?.id,
+      detail: { hadActiveRun: !!activeRun },
+    });
     return this.get(id);
   }
 }

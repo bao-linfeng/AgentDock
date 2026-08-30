@@ -229,7 +229,6 @@ enum ApprovalAction {
   push
   destructive
 }
-
 enum ApprovalStatus {
   pending
   approved
@@ -258,4 +257,51 @@ model Approval {
   @@index([runId])
   @@index([status])
   @@map("approvals")
+}
+
+
+// Audit trail (docs/requirements.md §10 "Audit Log 必须记录 actor、source、
+// prompt、runner、executor、status、artifact", docs/tasks.md T9.5, #63).
+//
+// Deliberately a flat append-only log rather than foreign keys to tasks/runs:
+// an audit entry must survive the deletion of the project/task it describes,
+// so `projectId` / `taskId` / `runId` are plain columns, not relations.
+enum AuditAction {
+  task_created
+  task_cancelled
+  run_claimed
+  run_completed
+  run_retried
+  approval_requested
+  approval_resolved
+  runner_registered
+  runner_revoked
+}
+
+enum AuditSource {
+  web
+  github
+  runner
+  system
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  source    AuditSource
+  /// Free-form identity (GitHub login, runner name, "web") — no users table in MVP.
+  actor     String?
+  projectId String?
+  taskId    String?
+  runId     String?
+  /// Structured detail (prompt excerpt, executor, status, artifact types, ...),
+  /// passed through `redactSecrets` before it is stored (architecture §14).
+  detailJson Json?
+  createdAt DateTime    @default(now())
+
+  @@index([action])
+  @@index([taskId])
+  @@index([runId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

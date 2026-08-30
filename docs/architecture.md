@@ -451,6 +451,27 @@ resolved_at
 resolved_by
 ```
 
+### audit_logs
+
+> **[实现补充 #63]** 追加型审计表（requirements.md §10、docs/tasks.md T9.5）。
+> `project_id` / `task_id` / `run_id` 是普通列而**不是**外键：审计条目要在其描述的
+> task/project 被删除后继续存在。`detail_json` 存 prompt 摘要（截断 500 字符）、
+> executor、status、errorCode、artifact 类型等，落库前经 `redactSecrets` 脱敏。
+
+```text
+id
+action        -- task_created | task_cancelled | run_claimed | run_completed |
+              -- run_retried | approval_requested | approval_resolved |
+              -- runner_registered | runner_revoked
+source        -- web | github | runner | system
+actor         -- 自由文本身份（GitHub 用户名 / runner 名 / "web"）
+project_id
+task_id
+run_id
+detail_json
+created_at
+```
+
 ---
 
 ## 8. Task 状态机
