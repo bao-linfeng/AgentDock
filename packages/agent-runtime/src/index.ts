@@ -173,6 +173,17 @@ export class OpenCodeExecutor implements AgentExecutor {
       cwd: input.workspaceCwd,
     });
 
+    // `spawn` reports a failure to start (e.g. the `opencode` binary isn't
+    // resolvable — #71) via an async 'error' event, not synchronously. Give
+    // the event loop a turn so `handle.spawnError` reflects that before we
+    // commit to using `handle.stream`, which is unusable if the process
+    // never actually started.
+    await new Promise((r) => setImmediate(r));
+    if (handle.spawnError) {
+      await sink.error(handle.spawnError.message, 'spawn_failed');
+      return { status: 'failed', artifacts: [], summary: handle.spawnError.message };
+    }
+
     this.pipeStderr(handle, sink);
 
     const clientApp = acp.client({ name: 'agentdock-runner' });

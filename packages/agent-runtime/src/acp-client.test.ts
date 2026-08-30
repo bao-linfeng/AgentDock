@@ -61,4 +61,77 @@ describe('launchAcpProcess', () => {
       expect.objectContaining({ shell: false }),
     );
   });
+
+  it('normalizes a Path-only env into PATH on win32 (#71)', async () => {
+    const { PATH: _omit, ...envWithoutPath } = process.env;
+    vi.stubGlobal('process', {
+      ...process,
+      platform: 'win32',
+      env: { ...envWithoutPath, Path: 'C:\\nvm4w\\nodejs' },
+    });
+    spawnMock.mockReturnValue(createFakeChild());
+
+    const { launchAcpProcess } = await import('./acp-client.js');
+    launchAcpProcess({ command: 'opencode', cwd: process.cwd() });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'opencode',
+      ['acp'],
+      expect.objectContaining({ env: expect.objectContaining({ PATH: 'C:\\nvm4w\\nodejs' }) }),
+    );
+  });
+
+  it('leaves env untouched when PATH is already present', async () => {
+    vi.stubGlobal('process', {
+      ...process,
+      platform: 'win32',
+      env: { ...process.env, PATH: 'C:\\already-correct', Path: 'C:\\ignored' },
+    });
+    spawnMock.mockReturnValue(createFakeChild());
+
+    const { launchAcpProcess } = await import('./acp-client.js');
+    launchAcpProcess({ command: 'opencode', cwd: process.cwd() });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'opencode',
+      ['acp'],
+      expect.objectContaining({ env: expect.objectContaining({ PATH: 'C:\\already-correct' }) }),
+    );
+  });
+
+  it('does not normalize PATH casing on non-Windows platforms', async () => {
+    const { PATH: _omit, ...envWithoutPath } = process.env;
+    vi.stubGlobal('process', {
+      ...process,
+      platform: 'linux',
+      env: { ...envWithoutPath, Path: '/should/not/be/used' },
+    });
+    spawnMock.mockReturnValue(createFakeChild());
+
+    const { launchAcpProcess } = await import('./acp-client.js');
+    launchAcpProcess({ command: 'opencode', cwd: process.cwd() });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'opencode',
+      ['acp'],
+      expect.objectContaining({ env: expect.not.objectContaining({ PATH: expect.anything() }) }),
+    );
+  });
+
+  it('surfaces a spawn failure on handle.spawnError instead of throwing (#71)', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32', env: process.env });
+    const child = createFakeChild();
+    spawnMock.mockReturnValue(child);
+
+    const { launchAcpProcess } = await import('./acp-client.js');
+    const handle = launchAcpProcess({ command: 'opencode', cwd: process.cwd() });
+
+    expect(handle.spawnError).toBeUndefined();
+    const error = Object.assign(new Error('spawn opencode ENOENT'), { code: 'ENOENT' });
+    child.emit('error', error);
+
+    expect(handle.spawnError).toBe(error);
+    await expect(handle.exited).resolves.toEqual({ code: null, signal: null });
+    await expect(handle.kill()).resolves.toBeUndefined();
+  });
 });
