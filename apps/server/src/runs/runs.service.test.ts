@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { AuditService } from '../audit/audit.service.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import type { PullRequestService } from '../github/pull-request.service.js';
 import type { RunCallbackService } from '../github/run-callback.service.js';
@@ -45,6 +46,11 @@ function fakeCallbacks(): RunCallbackService {
   return { post: vi.fn().mockResolvedValue(undefined) } as unknown as RunCallbackService;
 }
 
+/** Audit writes are best-effort side effects; stub them out (docs/tasks.md T9.5). */
+function fakeAudit(): AuditService {
+  return { record: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService;
+}
+
 function service(
   prisma: PrismaService,
   pullRequests?: PullRequestService,
@@ -55,6 +61,7 @@ function service(
     new RunEventsBus(),
     pullRequests ?? fakePullRequests(),
     callbacks ?? fakeCallbacks(),
+    fakeAudit(),
   );
 }
 

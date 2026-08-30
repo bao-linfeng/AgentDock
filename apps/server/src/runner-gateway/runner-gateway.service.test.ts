@@ -2,6 +2,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { Runner, TaskRun } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ApprovalsService } from '../approvals/approvals.service.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { RunCallbackService } from '../github/run-callback.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { RunnersService } from '../runners/runners.service.js';
@@ -85,6 +86,7 @@ function build(
     runnersStub,
     callbacksStub,
     approvalsStub,
+    { record: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService,
   );
   return { service, recordEvent, applyStatus, runnersStub, callbacksStub, approvalsStub };
 }

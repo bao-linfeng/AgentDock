@@ -11,6 +11,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Artifact, Prisma, RunEvent, TaskRun } from '@prisma/client';
+import { AuditService } from '../audit/audit.service.js';
 import { toIso } from '../common/serialize.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import { PullRequestService } from '../github/pull-request.service.js';
@@ -103,6 +104,7 @@ export class RunsService {
     @Inject(RunEventsBus) private readonly bus: RunEventsBus,
     @Inject(PullRequestService) private readonly pullRequests: PullRequestService,
     @Inject(RunCallbackService) private readonly callbacks: RunCallbackService,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
   async requireRun(runId: string): Promise<TaskRun> {
@@ -286,6 +288,14 @@ export class RunsService {
         errorMessage: `runner ${runnerId} stopped sending heartbeats while this run was in flight`,
       },
     });
+    await this.audit.record({
+      action: 'run_completed',
+      source: 'system',
+      actor: runnerId,
+      taskId: run.taskId,
+      runId,
+      detail: { status: 'failed', errorCode: 'runner_disconnected', executor: run.executor },
+    });
     return toRunDto(await this.requireRun(runId));
   }
 
@@ -318,6 +328,14 @@ export class RunsService {
     await this.recordEvent(retryRun.id, 'log', {
       message: `retrying failed run ${run.id}`,
       previousRunId: run.id,
+    });
+    await this.audit.record({
+      action: 'run_retried',
+      source: 'web',
+      actor: 'web',
+      taskId: run.taskId,
+      runId: retryRun.id,
+      detail: { previousRunId: run.id, executor: retryRun.executor },
     });
     return toRunDto(retryRun);
   }
@@ -410,6 +428,20 @@ export class RunsService {
     await this.appendEvent(runId, {
       type: 'status',
       payload: { status, errorCode, errorMessage },
+    });
+    await this.audit.record({
+      action: 'run_completed',
+      source: 'runner',
+      actor: run.runnerId ?? undefined,
+      taskId: run.taskId,
+      runId,
+      detail: {
+        status,
+        executor: run.executor,
+        errorCode,
+        branch: input.branch,
+        artifacts: artifacts.map((a) => a.type),
+      },
     });
     return toRunDto(await this.requireRun(runId));
   }

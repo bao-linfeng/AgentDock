@@ -3,6 +3,7 @@ import { ForbiddenException, Inject, Injectable, UnauthorizedException } from '@
 import type { Runner } from '@prisma/client';
 import type { ApprovalDto, RequestApprovalInput } from '../approvals/approvals.dto.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
+import { AuditService } from '../audit/audit.service.js';
 import { RunCallbackService } from '../github/run-callback.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { parseEvidenceRules } from '../projects/evidence-rules.js';
@@ -47,6 +48,7 @@ export class RunnerGatewayService {
     @Inject(RunnersService) private readonly runners: RunnersService,
     @Inject(RunCallbackService) private readonly callbacks: RunCallbackService,
     @Inject(ApprovalsService) private readonly approvals: ApprovalsService,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
   /** A runner must register before it can claim or report anything. */
@@ -107,6 +109,16 @@ export class RunnerGatewayService {
         runnerName: runner.name,
       });
       void this.callbacks.post('picked_up', { runId: run.id });
+
+      await this.audit.record({
+        action: 'run_claimed',
+        source: 'runner',
+        actor: runner.name,
+        projectId: run.task.projectId,
+        taskId: run.task.id,
+        runId: run.id,
+        detail: { runnerId: runner.id, executor: run.executor },
+      });
 
       const workspacePath = workspaceByProject.get(run.task.projectId);
       if (!workspacePath) continue;

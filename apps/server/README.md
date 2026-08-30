@@ -57,6 +57,7 @@ the browser `EventSource` API cannot send headers; prefer headers elsewhere.
 | `GET /approvals/pending`                  | List every approval still awaiting a decision         |
 | `GET /approvals/:id`                      | Approval detail                                       |
 | `POST /approvals/:id/resolve`             | Approve/deny a pending approval (`{ decision }`)       |
+| `GET /audit-logs`                         | Audit trail; filter by `action`/`source`/`taskId`/`runId`/`projectId`, paginate with `limit`/`offset` |
 | `GET /runners` · `GET /runners/:id`       | Runner inventory (`online` derived from heartbeat)   |
 | `POST /runners/:id/revoke`                | Revoke a runner token                                |
 | `GET /runners/:id/projects`               | Project → local workspace path mappings              |

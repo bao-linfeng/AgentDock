@@ -345,7 +345,9 @@ Task 的最终状态由 Task Engine 判断，不由 Agent 最后一段自然语�
 - 高风险 Shell / Git 操作的 Approval Gate（**[已实现 2026-08-30, #37]**：见
   docs/tasks.md T8.3、architecture.md §9/§15 —— shell 工具调用、push、以及标记
   为 destructive 的操作均需人工审批才能继续，未决议超时按拒绝处理）。
-- Audit Log 必须记录 actor、source、prompt、runner、executor、status、artifact。
+- Audit Log 必须记录 actor、source、prompt、runner、executor、status、artifact
+  （**[已实现 2026-08-30, #63]**：`audit_logs` 表 + `GET /audit-logs`，写入点与
+  字段说明见 docs/tasks.md T9.5；`detailJson` 落库前经 `redactSecrets` 脱敏）。
 
 ---
 

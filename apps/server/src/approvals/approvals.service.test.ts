@@ -1,9 +1,15 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { Approval } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { AuditService } from '../audit/audit.service.js';
 import { RunEventsBus } from '../events/run-events.bus.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { ApprovalsService } from './approvals.service.js';
+
+/** Audit writes are best-effort side effects; stub them out (docs/tasks.md T9.5). */
+function fakeAudit(): AuditService {
+  return { record: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService;
+}
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 
@@ -47,7 +53,11 @@ describe('ApprovalsService.request', () => {
     const create = vi.fn().mockResolvedValue(approval());
     const bus = new RunEventsBus();
     const publish = vi.spyOn(bus, 'publish');
-    const service = new ApprovalsService(fakePrisma({ approval: { findFirst, create } }), bus);
+    const service = new ApprovalsService(
+      fakePrisma({ approval: { findFirst, create } }),
+      bus,
+      fakeAudit(),
+    );
 
     const result = await service.request('run_1', {
       action: 'shell',
@@ -69,6 +79,7 @@ describe('ApprovalsService.request', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findFirst, create } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     await service.request('run_1', {
@@ -89,6 +100,7 @@ describe('ApprovalsService.request', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findFirst, create } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     const result = await service.request('run_1', { action: 'shell', summary: 'run x' });
@@ -107,6 +119,7 @@ describe('ApprovalsService.resolve', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findUnique, update } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     const result = await service.resolve('app_1', { decision: 'approved', resolvedBy: 'web' });
@@ -122,6 +135,7 @@ describe('ApprovalsService.resolve', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findUnique, update: vi.fn() } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     await expect(service.resolve('app_1', { decision: 'denied' })).rejects.toBeInstanceOf(
@@ -134,6 +148,7 @@ describe('ApprovalsService.resolve', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findUnique } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     await expect(service.resolve('missing', { decision: 'approved' })).rejects.toBeInstanceOf(
@@ -148,6 +163,7 @@ describe('ApprovalsService.pendingForRun', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findFirst } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     const result = await service.pendingForRun('run_1');
@@ -163,6 +179,7 @@ describe('ApprovalsService.pendingForRun', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findFirst } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
     expect(await service.pendingForRun('run_1')).toBeNull();
   });
@@ -175,6 +192,7 @@ describe('ApprovalsService.approvalsForHeartbeat', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findMany } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
 
     const result = await service.approvalsForHeartbeat('run_1');
@@ -194,6 +212,7 @@ describe('ApprovalsService.approvalsForHeartbeat', () => {
     const service = new ApprovalsService(
       fakePrisma({ approval: { findMany } }),
       new RunEventsBus(),
+      fakeAudit(),
     );
     expect(await service.approvalsForHeartbeat('run_1')).toEqual([]);
   });

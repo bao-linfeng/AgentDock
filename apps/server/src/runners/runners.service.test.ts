@@ -2,9 +2,15 @@ import { RUNNER_OFFLINE_TIMEOUT_MS } from '@agentdock/shared';
 import { UnauthorizedException } from '@nestjs/common';
 import type { Runner } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { AuditService } from '../audit/audit.service.js';
 import { hashToken } from '../auth/token.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { RunnersService, isRunnerOnline, toRunnerDto } from './runners.service.js';
+
+/** Audit writes are best-effort side effects; stub them out (docs/tasks.md T9.5). */
+function fakeAudit(): AuditService {
+  return { record: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService;
+}
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 
@@ -60,6 +66,7 @@ describe('RunnersService.register', () => {
     const upsert = vi.fn().mockResolvedValue(runner());
     const service = new RunnersService(
       fakePrisma({ runner: { findUnique: vi.fn().mockResolvedValue(null), upsert } }),
+      fakeAudit(),
     );
 
     const dto = await service.register('runner-token', { name: 'dev-box', platform: 'win32' });
@@ -77,6 +84,7 @@ describe('RunnersService.register', () => {
           upsert: vi.fn(),
         },
       }),
+      fakeAudit(),
     );
     await expect(service.register('runner-token', { name: 'dev-box' })).rejects.toBeInstanceOf(
       UnauthorizedException,
@@ -91,6 +99,7 @@ describe('RunnersService.upsertProject', () => {
         runner: { findUnique: vi.fn().mockResolvedValue(runner()) },
         project: { findUnique: vi.fn().mockResolvedValue(null) },
       }),
+      fakeAudit(),
     );
     await expect(
       service.upsertProject('rnr_1', 'missing', { workspacePath: 'D:/repo', enabled: true }),
@@ -107,6 +116,7 @@ describe('RunnersService.findStaleOnlineRunners', () => {
     });
     const service = new RunnersService(
       fakePrisma({ runner: { findMany: vi.fn().mockResolvedValue([fresh, stale]) } }),
+      fakeAudit(),
     );
 
     const result = await service.findStaleOnlineRunners(now);
@@ -117,7 +127,7 @@ describe('RunnersService.findStaleOnlineRunners', () => {
 describe('RunnersService.markOffline', () => {
   it('flips the stored status to offline', async () => {
     const update = vi.fn().mockResolvedValue(runner({ status: 'offline' }));
-    const service = new RunnersService(fakePrisma({ runner: { update } }));
+    const service = new RunnersService(fakePrisma({ runner: { update } }), fakeAudit());
 
     await service.markOffline('rnr_1');
     expect(update).toHaveBeenCalledWith({ where: { id: 'rnr_1' }, data: { status: 'offline' } });

@@ -437,6 +437,7 @@ pnpm dev
   - ✅ 审批模型 ([#37](https://github.com/bao-linfeng/AgentDock/issues/37))：shell / push / 破坏性操作三类审批门，`needs_approval` 已贯通 Runner（`apps/runner/src/approval-gate.ts`）与 Web 端（`apps/server/src/approvals`、`apps/web/src/components/ApprovalPanel.vue`）
 - ✅ **Milestone 9 —— 稳定性** (epic [#9](https://github.com/bao-linfeng/AgentDock/issues/9):[#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39) [#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 敏感信息脱敏 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
+  - ✅ 统一 Audit Log ([#63](https://github.com/bao-linfeng/AgentDock/issues/63))：`audit_logs` 表 + `GET /audit-logs`，覆盖任务派发/取消、Run 领取/完成/重试、审批请求与决议、Runner 注册与吊销；细节脱敏后落库
   - ✅ 幂等:Task 去重键、原子 claim、complete 守卫 ([#40](https://github.com/bao-linfeng/AgentDock/issues/40))
   - ✅ 断线重连处理(心跳超时扫描，中断孤儿 Run) · 重试(新 Run ID，保留历史) ([#38](https://github.com/bao-linfeng/AgentDock/issues/38) [#39](https://github.com/bao-linfeng/AgentDock/issues/39))
 
