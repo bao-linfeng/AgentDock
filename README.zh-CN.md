@@ -294,6 +294,13 @@ pnpm install
 
 ### 2. 配置与启动 Control Server
 
+> [!TIP]
+> 下面第 2–4 步是首次配置时逐个启动每个服务的完整流程。一旦
+> `apps/server/.env` 与 `apps/runner/runner.config.json` 都已存在，之后可以在
+> 仓库根目录用一条命令同时启动 Control Server、Local Runner 与 Web 控制台：
+> `pnpm dev`(会先构建 workspace 包，再并行启动三者，日志带前缀区分；Runner
+> 会先等待 `GET /health` 就绪后才注册，不用担心启动顺序竞争)。
+
 ```bash
 pnpm db:up            # 用 Docker 起 MySQL 8(3306 被占用时 MYSQL_PORT=3307)
 cd apps/server
