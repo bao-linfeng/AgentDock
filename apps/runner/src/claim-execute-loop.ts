@@ -38,12 +38,16 @@ export interface ClaimExecuteLoopOptions {
     detail?: unknown,
   ) => Promise<'approved' | 'denied'>;
   /**
-   * Local root-containment gate for the server-supplied `workspacePath`
-   * (docs/architecture.md §14; #75). The Control Server never touches the
-   * local filesystem, so the Runner is the last line of defense against a
-   * claim response that names a path outside the operator's configured
-   * `allowedRoots` (or a path that doesn't exist / isn't a git repo). Must
-   * throw to reject the claimed work; the loop completes the run as
+   * Local safety gate for the server-supplied `workspacePath`, which is the
+   * sole source of truth for the execution path (docs/architecture.md §7/§14;
+   * #75, #76). The Control Server never touches the local filesystem, so the
+   * Runner is the last line of defense against a claim response that names a
+   * path that either:
+   *   1. escapes the operator's configured `allowedRoots`, or doesn't exist /
+   *      isn't a git repo (root containment, #75); or
+   *   2. mismatches the local operator's *expected* `workspacePath` for this
+   *      project, when one is configured (drift/tamper detection, #76).
+   * Must throw to reject the claimed work; the loop completes the run as
    * `failed` with `errorCode: 'workspace_not_allowed'`. When omitted, no
    * local check is performed beyond the existing absolute-path assertion.
    */
@@ -67,10 +71,11 @@ class RunCancelledError extends Error {
 }
 
 /**
- * Raised when the server-supplied `workspacePath` fails the local
- * root-containment / existence / git-repo check (#75). Caught separately so
- * the run completes as `failed` with a stable `errorCode` instead of the
- * generic `runner_error`.
+ * Raised when the server-supplied `workspacePath` fails the local safety
+ * gate — either the root-containment / existence / git-repo check (#75), or
+ * a mismatch against the local operator's expected value (#76). Caught
+ * separately so the run completes as `failed` with a stable `errorCode`
+ * instead of the generic `runner_error`.
  */
 class WorkspaceNotAllowedError extends Error {
   constructor(message: string) {

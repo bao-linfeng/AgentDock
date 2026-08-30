@@ -8,6 +8,7 @@ import {
   ConfigError,
   RunnerConfigSchema,
   assertNoEmbeddedModelKeys,
+  checkWorkspacePathMatchesLocalExpectation,
   loadConfig,
   validateProjects,
   validateWorkspacePath,
@@ -23,6 +24,27 @@ describe('RunnerConfigSchema', () => {
       runnerName: 'r',
     });
     expect(cfg.projects).toEqual({});
+  });
+
+  it('allows a project entry without a local workspacePath (#76: server is the source of truth)', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: {} },
+    });
+    expect(cfg.projects.proj_1?.workspacePath).toBeUndefined();
+  });
+
+  it('no longer accepts/needs defaultBranch on a project mapping (#76: dead on the execution path)', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: { workspacePath: '/tmp/repo', defaultBranch: 'develop' } },
+    });
+    // Zod strips unknown keys by default; defaultBranch is not part of the schema.
+    expect(cfg.projects.proj_1).not.toHaveProperty('defaultBranch');
   });
 
   it('defaults a project to push disabled (commit-only behavior)', () => {
@@ -157,6 +179,64 @@ describe('validateProjects', () => {
     });
     const issues = await validateProjects(cfg);
     expect(issues.some((i) => i.message.includes('escapes allowedRoots'))).toBe(true);
+  });
+
+  it('skips a project with no local workspacePath configured (#76: optional local expectation)', async () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      allowedRoots: [dir],
+      projects: { proj_1: {} },
+    });
+    expect(await validateProjects(cfg)).toEqual([]);
+  });
+});
+
+describe('checkWorkspacePathMatchesLocalExpectation (#76)', () => {
+  it('returns no issues when the project has no local workspacePath configured', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: {} },
+    });
+    expect(checkWorkspacePathMatchesLocalExpectation(cfg, 'proj_1', '/some/server/path')).toEqual(
+      [],
+    );
+  });
+
+  it('returns no issues when the project is not configured locally at all', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+    });
+    expect(
+      checkWorkspacePathMatchesLocalExpectation(cfg, 'proj_unknown', '/some/server/path'),
+    ).toEqual([]);
+  });
+
+  it('returns no issues when the server-supplied path matches the local expectation', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: { workspacePath: '/tmp/repo' } },
+    });
+    expect(checkWorkspacePathMatchesLocalExpectation(cfg, 'proj_1', '/tmp/repo')).toEqual([]);
+  });
+
+  it('flags a mismatch between the server-supplied path and the local expectation', () => {
+    const cfg = RunnerConfigSchema.parse({
+      serverUrl: 'http://localhost:3100',
+      runnerToken: 't',
+      runnerName: 'r',
+      projects: { proj_1: { workspacePath: '/tmp/repo-a' } },
+    });
+    const issues = checkWorkspacePathMatchesLocalExpectation(cfg, 'proj_1', '/tmp/repo-b');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('does not match');
   });
 });
 

@@ -2,10 +2,10 @@
   "serverUrl": "http://localhost:3100",
   "runnerToken": "change-me-runner-token",
   "runnerName": "my-dev-workstation",
+  "//": "workspacePath is authoritative on the server (set via the Web console's Runner mapping panel, or PUT /runners/:id/projects/:projectId). The entry below is optional local policy: 'workspacePath' is only a drift/tamper check against what the server sends at claim time (omit it to just trust the server); 'push' stays local (#76, #78).",
   "projects": {
     "proj_replace_with_server_project_id": {
       "workspacePath": "D:/path/to/local/project",
-      "defaultBranch": "main",
       "push": {
         "enabled": false,
         "remote": "origin",
