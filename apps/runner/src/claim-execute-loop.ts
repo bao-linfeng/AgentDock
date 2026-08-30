@@ -37,6 +37,17 @@ export interface ClaimExecuteLoopOptions {
     summary: string,
     detail?: unknown,
   ) => Promise<'approved' | 'denied'>;
+  /**
+   * Local root-containment gate for the server-supplied `workspacePath`
+   * (docs/architecture.md §14; #75). The Control Server never touches the
+   * local filesystem, so the Runner is the last line of defense against a
+   * claim response that names a path outside the operator's configured
+   * `allowedRoots` (or a path that doesn't exist / isn't a git repo). Must
+   * throw to reject the claimed work; the loop completes the run as
+   * `failed` with `errorCode: 'workspace_not_allowed'`. When omitted, no
+   * local check is performed beyond the existing absolute-path assertion.
+   */
+  assertWorkspaceAllowed?: (projectId: string, workspacePath: string) => Promise<void>;
   onLog?: (message: string) => void;
   onError?: (error: unknown) => void;
   /** Test seam: overrides `setInterval`/`clearInterval`/`setTimeout`/`clearTimeout`. */
@@ -52,6 +63,19 @@ class RunCancelledError extends Error {
   constructor(runId: string) {
     super(`run ${runId} was cancelled`);
     this.name = 'RunCancelledError';
+  }
+}
+
+/**
+ * Raised when the server-supplied `workspacePath` fails the local
+ * root-containment / existence / git-repo check (#75). Caught separately so
+ * the run completes as `failed` with a stable `errorCode` instead of the
+ * generic `runner_error`.
+ */
+class WorkspaceNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkspaceNotAllowedError';
   }
 }
 
@@ -77,6 +101,10 @@ export class ClaimExecuteLoop {
     summary: string,
     detail?: unknown,
   ) => Promise<'approved' | 'denied'>;
+  private readonly assertWorkspaceAllowed?: (
+    projectId: string,
+    workspacePath: string,
+  ) => Promise<void>;
   private readonly onLog: (message: string) => void;
   private readonly onError: (error: unknown) => void;
   private readonly setIntervalImpl: typeof setInterval;
@@ -95,6 +123,7 @@ export class ClaimExecuteLoop {
     this.commitMessageTemplate = options.commitMessageTemplate ?? DEFAULT_COMMIT_MESSAGE_TEMPLATE;
     this.getPushConfig = options.getPushConfig ?? (() => undefined);
     this.requestPushApproval = options.requestPushApproval;
+    this.assertWorkspaceAllowed = options.assertWorkspaceAllowed;
     this.onLog = options.onLog ?? (() => {});
     this.onError = options.onError ?? (() => {});
     this.setIntervalImpl = options.setIntervalImpl ?? setInterval;
@@ -143,6 +172,15 @@ export class ClaimExecuteLoop {
       const workspacePath = resolve(work.project.workspacePath);
       if (!isAbsolute(workspacePath)) {
         throw new GitRuntimeError(`workspacePath must be absolute: ${work.project.workspacePath}`);
+      }
+
+      if (this.assertWorkspaceAllowed) {
+        try {
+          await this.assertWorkspaceAllowed(work.project.id, workspacePath);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new WorkspaceNotAllowedError(message);
+        }
       }
 
       const worktreeMgr = new WorktreeManager(workspacePath);
@@ -347,6 +385,9 @@ export class ClaimExecuteLoop {
       if (error instanceof RunCancelledError) {
         await this.executor.cancel(runId).catch(() => {});
         await this.finishTerminal(runId, 'cancelled', []);
+      } else if (error instanceof WorkspaceNotAllowedError) {
+        this.onError(error);
+        await this.finishFailed(runId, 'workspace_not_allowed', error.message);
       } else {
         const message = error instanceof Error ? error.message : String(error);
         this.onError(error);
