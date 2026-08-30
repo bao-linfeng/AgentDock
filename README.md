@@ -354,6 +354,13 @@ The full endpoint list (Web API + Runner Gateway) lives in
 
 ### 3. Configure & start the Local Runner
 
+`workspacePath` is authoritative on the **server** — map a project onto this
+runner in the Web console's Projects → Runner mapping panel (or
+`PUT /runners/:id/projects/:projectId`); that's what the claim response sends
+and what the Runner actually executes against (#76). The local
+`runner.config.json` only needs `serverUrl`, `runnerToken`, and `runnerName`
+to start:
+
 ```bash
 cd apps/runner
 cp runner.config.example.json runner.config.json
@@ -363,11 +370,24 @@ cp runner.config.example.json runner.config.json
 {
   "serverUrl": "http://localhost:3100",
   "runnerToken": "your-runner-token-generated-from-server",
+  "runnerName": "my-dev-workstation"
+}
+```
+
+Per-project entries under `projects` are optional local policy, not a
+mapping — `workspacePath` there, if set, is just a drift/tamper check: the
+Runner rejects the claimed run if the server-supplied path doesn't match it
+(#76). `push` (enable/remote/protected branches/approval) still lives here
+until it's promoted to a project-level, Web-configurable policy (#78):
+
+```json
+{
+  "serverUrl": "http://localhost:3100",
+  "runnerToken": "your-runner-token-generated-from-server",
   "runnerName": "my-dev-workstation",
   "projects": {
     "proj_123": {
       "workspacePath": "/path/to/local/project",
-      "defaultBranch": "main",
       "push": {
         "enabled": false,
         "remote": "origin",
@@ -447,10 +467,11 @@ Foundation packages (#1–#5) are merged; the end-to-end loop is next.
   - ✅ NestJS modules (Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
   - ✅ Prisma schema & MySQL migration · Project CRUD
   - ✅ Runner Gateway (claim / events / heartbeat / complete) with cancellation via the heartbeat response
-- 🟡 **Milestone 3 — Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
+- ✅ **Milestone 3 — Local Runner** *(done)* ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24) [#75](https://github.com/bao-linfeng/AgentDock/issues/75) [#76](https://github.com/bao-linfeng/AgentDock/issues/76))
   - ✅ Runner config safety & secret handling ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ Task-claim engine core ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
   - ✅ Runner-side registration/heartbeat loop (#23) · ✅ claim→execute loop (#24)
+  - ✅ Project mapping: `workspacePath` is authoritative on the server (`runner_projects`), enforced against the operator's local `allowedRoots` at claim time ([#75](https://github.com/bao-linfeng/AgentDock/issues/75)); local `runner.config.json` per-project entries are now optional drift/tamper checks rather than a second source of truth, and the redundant local `defaultBranch` field was removed ([#76](https://github.com/bao-linfeng/AgentDock/issues/76))
 - 🟡 **Milestone 4 — Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7): [#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` interface
   - ✅ OpenCode ACP executor · ACP → RunEvent bridge (via `@agentclientprotocol/sdk`; see `packages/agent-runtime`)

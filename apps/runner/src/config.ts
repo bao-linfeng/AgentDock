@@ -21,10 +21,27 @@ export const PushConfigSchema = z.object({
   requireApproval: z.boolean().default(false),
 });
 
-/** Per-project mapping: server project id -> local workspace path. */
+/**
+ * Per-project local policy and safety-net override.
+ *
+ * `workspacePath` on the execution path is authoritative on the **server**
+ * (`runner_projects.workspacePath`, delivered in the claim response as
+ * `work.project.workspacePath`) — see docs/architecture.md §7/§14 and #76.
+ * The field here is now optional and, when present, is treated as the local
+ * operator's *expected* value: it is compared against whatever the server
+ * sends at claim time, and a mismatch aborts the run (`workspace_mismatch`).
+ * This guards against a compromised/misconfigured Control Server steering
+ * the Runner at an unexpected path, without reinstating the local config as
+ * a second source of truth. Omitting it means "trust the server for this
+ * project", constrained only by `allowedRoots`.
+ *
+ * `defaultBranch` was removed (#76): the execution path only ever uses the
+ * server-supplied `work.project.defaultBranch` (`runner_projects` has no
+ * such column), so a local copy was dead weight that could silently drift
+ * from the real base branch.
+ */
 export const ProjectMappingSchema = z.object({
-  workspacePath: z.string().min(1),
-  defaultBranch: z.string().default('main'),
+  workspacePath: z.string().min(1).optional(),
   push: PushConfigSchema.default({}),
 });
 
@@ -128,21 +145,55 @@ export async function validateWorkspacePath(
 }
 
 /**
- * Validate project mappings against the filesystem: the path must exist, be a
- * git repository, and (if `allowedRoots` is set) be contained under an allowed
- * root. Returns a list of issues rather than throwing so a caller can surface
- * all problems at once.
+ * Validate project mappings against the filesystem: for any project that
+ * still declares a local `workspacePath` (now optional, #76 — see
+ * `ProjectMappingSchema`), the path must exist, be a git repository, and (if
+ * `allowedRoots` is set) be contained under an allowed root. Projects
+ * without a local `workspacePath` are skipped here; their path is validated
+ * against the server-supplied value at claim time instead (see
+ * `assertWorkspaceAllowed` in `claim-execute-loop.ts`). Returns a list of
+ * issues rather than throwing so a caller can surface all problems at once.
  */
 export async function validateProjects(config: RunnerConfig): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
 
   for (const [projectId, mapping] of Object.entries(config.projects)) {
+    if (!mapping.workspacePath) continue;
     issues.push(
       ...(await validateWorkspacePath(projectId, mapping.workspacePath, config.allowedRoots)),
     );
   }
 
   return issues;
+}
+
+/**
+ * Compare the server-supplied `workspacePath` (from the claim response)
+ * against the local operator's expected value for `projectId`, when one is
+ * configured (#76). Returns an issue if they differ after path resolution;
+ * returns no issues when the project isn't locally configured at all, or is
+ * configured without a `workspacePath` override.
+ */
+export function checkWorkspacePathMatchesLocalExpectation(
+  config: RunnerConfig,
+  projectId: string,
+  serverWorkspacePath: string,
+): ValidationIssue[] {
+  const expected = config.projects[projectId]?.workspacePath;
+  if (!expected) return [];
+
+  if (resolve(expected) !== resolve(serverWorkspacePath)) {
+    return [
+      {
+        projectId,
+        level: 'error',
+        message:
+          `server-supplied workspacePath (${resolve(serverWorkspacePath)}) does not match ` +
+          `the local expected value (${resolve(expected)}) configured for this project`,
+      },
+    ];
+  }
+  return [];
 }
 
 /** On POSIX, warn when the config file is group/world readable (mode & 0o077). */

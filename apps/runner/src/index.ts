@@ -6,6 +6,7 @@ import { ClaimExecuteLoop } from './claim-execute-loop.js';
 import {
   type RunnerConfig,
   checkFilePermissions,
+  checkWorkspacePathMatchesLocalExpectation,
   loadConfig,
   validateProjects,
   validateWorkspacePath,
@@ -113,7 +114,12 @@ async function main(): Promise<void> {
     requestPushApproval: (runId, summary, detail) =>
       approvalGate.requestPushApproval(runId, summary, detail),
     assertWorkspaceAllowed: async (projectId, workspacePath) => {
+      // #75: root containment / existence / git-repo check against the
+      // operator's allowedRoots — always enforced.
       const issues = await validateWorkspacePath(projectId, workspacePath, config.allowedRoots);
+      // #76: if this project has a local `workspacePath` expectation
+      // configured, the server-supplied value must match it exactly.
+      issues.push(...checkWorkspacePathMatchesLocalExpectation(config, projectId, workspacePath));
       if (issues.length > 0) {
         throw new Error(issues.map((i) => i.message).join('; '));
       }

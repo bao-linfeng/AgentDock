@@ -314,7 +314,7 @@ packages/governance
 >
 > **[已实现]** `runners` 增加 `token_hash` / `revoked` / `revoked_at`（requirements.md §10）：只存哈希，可单独撤销。
 >
-> **[已澄清]** `projects.workspace_key` 是**逻辑标识**（服务端与 Runner 共用的项目键，不含路径）；`runner_projects.workspace_path` 是**该 Runner 本机的绝对路径**。root containment 校验相对 Runner 本地配置的 `allowedRoots`，由 **Runner** 执行（Control Server 不访问本地文件系统）；Server 只负责保证"未映射 / 未启用的项目不会被领取"。
+> **[已澄清]** `projects.workspace_key` 是**逻辑标识**（服务端与 Runner 共用的项目键，不含路径）；`runner_projects.workspace_path` 是**该 Runner 本机的绝对路径**，且是执行路径上唯一的事实来源（#76：本地 `runner.config.json` 的 `projects[id].workspacePath` 已降级为可选的漂移/篡改校验值，不参与路径解析）。root containment 校验相对 Runner 本地配置的 `allowedRoots`，由 **Runner** 执行（Control Server 不访问本地文件系统）；Server 只负责保证"未映射 / 未启用的项目不会被领取"。
 >
 > **[实现补充]** 表名映射为下列 snake_case 名称，列名沿用 Prisma 的 camelCase；`task_runs` 另有 `cancel_requested_at`（见 §9）与 `created_at` / `updated_at`，`tasks` 另有 `delivery_id`（GitHub 投递去重）与 `callback_repo` / `callback_issue_number` / `callback_is_pull_request`（GitHub 状态回帖目标，§11 / #31：仅 `source = github` 的任务会写入，指向触发该任务的 Issue/PR 线程）。
 
@@ -739,8 +739,9 @@ Allowed Workspace
 
 规则：
 
-- Runner 不执行未知 Project。
-- Worktree cwd 必须通过 root containment check。
+- Runner 会执行本地 `runner.config.json` 未列出的 Project（只要服务端 `runner_projects` 已映射且启用，claim 即可下发；本地 `projects` 现在是可选覆盖而非强制白名单，见 #76）；真正的强制边界是下面两条。
+- Worktree cwd（即服务端下发的 `workspacePath`）必须通过 root containment check（相对本地 `allowedRoots`，由 Runner 在 claim 后本地强制执行，#75）。
+- 本地若为某 projectId 配置了 `workspacePath` 期望值，服务端下发值必须与其一致，否则拒绝执行（漂移/篡改检测，#76）。
 - GitHub webhook 必须验签。
 - Runner API 使用独立 token。
 - Secret 不写 RunEvent。

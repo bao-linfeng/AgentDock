@@ -20,7 +20,7 @@
 | | T2.4 Runner Gateway 与取消通道 | ✅ | #22 |
 | M3 Local Runner | T3.1 Runner 配置安全 | ✅ | #5 / PR #14 |
 | | T3.2 注册与心跳 | ✅ | #23（服务端接口 #22；Runner 侧循环见 apps/runner/src/heartbeat-loop.ts） |
-| | T3.3 项目映射（根包含校验） | 🟡 | #5（部分）/ #24（服务端映射接口已完成） |
+| | T3.3 项目映射（根包含校验 + 单一事实来源） | ✅ | #5 / #24 / #75（claim 时根包含校验）/ #76（单一事实来源澄清、本地字段降级） |
 | | T3.4 任务领取核心 | ✅ | #3 / PR #12 |
 | | T3.4b Runner 领取→执行主循环 | ✅ | #24 |
 | M4 Agent Runtime | T4.1 AgentExecutor 接口 | ✅ | 基线提交 |
@@ -329,7 +329,16 @@ cancelled
 
 ## T3.3 Runner Project Mapping
 
-> 🟡 部分完成（根包含校验已在 #5 完成；服务端映射接口 `PUT /runners/:id/projects/:projectId` 已在 #22 完成；Runner 侧路径解析见 #24）
+> ✅ 已完成（根包含校验见 #5 / #75；服务端映射接口 `PUT /runners/:id/projects/:projectId` 见 #22；Runner 侧路径解析见 #24）。
+>
+> #76 澄清并锁定单一事实来源：`workspacePath` 的权威来源是服务端
+> `runner_projects.workspace_path`，claim 响应下发即执行路径；本地
+> `runner.config.json` 的 `projects[id].workspacePath` 降级为**可选**的本地
+> 漂移/篡改校验值（配置了就必须与服务端下发值一致，否则以
+> `errorCode: workspace_not_allowed` 拒绝执行），未列出的 projectId 仍按服务
+> 端映射正常执行（真正强制边界是 `allowedRoots`，#75）。本地
+> `ProjectMappingSchema.defaultBranch` 字段已移除——执行路径只使用服务端下发
+> 的 `work.project.defaultBranch`，两处保留会造成语义重复。
 
 ```text
 server project id
@@ -339,8 +348,9 @@ local workspace path
 
 - [x] 路径存在检查
 - [x] Git Repo 检查
-- [x] root containment
+- [x] root containment（claim 时强制，#75）
 - [x] 服务端映射存储（`runner_projects.workspace_path`，未映射的项目不可领取）
+- [x] 单一事实来源澄清 + 本地字段降级为可选覆盖（#76）
 
 ## T3.4 Task Claim
 

@@ -331,6 +331,11 @@ pnpm dev              # http://localhost:3100/health
 
 ### 3. 配置与启动 Local Runner
 
+`workspacePath` 的权威来源是**服务端**——请在 Web 控制台「Projects → Runner
+映射」面板（或调用 `PUT /runners/:id/projects/:projectId`）把项目映射到这台
+Runner；claim 响应下发的正是这份路径，Runner 实际执行用的也是它（#76）。本地
+`runner.config.json` 启动只需要 `serverUrl`、`runnerToken`、`runnerName`：
+
 ```bash
 cd apps/runner
 cp runner.config.example.json runner.config.json
@@ -340,11 +345,23 @@ cp runner.config.example.json runner.config.json
 {
   "serverUrl": "http://localhost:3100",
   "runnerToken": "your-runner-token-generated-from-server",
+  "runnerName": "my-dev-workstation"
+}
+```
+
+`projects` 下的每项配置是**可选的本地策略**，不是映射来源——其中的
+`workspacePath`（若填写）只作为漂移/篡改校验：若服务端下发的路径与本地填写
+值不一致，Runner 会拒绝执行该 Run（#76）。`push`（是否推送/远程名/受保护分
+支/审批）目前仍留在本地，待其下沉为项目级、Web 可配的策略后再迁移（#78）：
+
+```json
+{
+  "serverUrl": "http://localhost:3100",
+  "runnerToken": "your-runner-token-generated-from-server",
   "runnerName": "my-dev-workstation",
   "projects": {
     "proj_123": {
       "workspacePath": "/path/to/local/project",
-      "defaultBranch": "main",
       "push": {
         "enabled": false,
         "remote": "origin",
@@ -418,10 +435,11 @@ pnpm dev
   - ✅ NestJS 模块(Auth / Projects / Tasks / Runs / Runners / GitHub / Events)
   - ✅ Prisma Schema 与 MySQL 迁移 · Project CRUD
   - ✅ Runner 网关(claim / events / heartbeat / complete)与经 heartbeat 下发的取消通道
-- 🟡 **Milestone 3 —— Local Runner** ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24))
+- ✅ **Milestone 3 —— Local Runner** *(已完成)* ([#23](https://github.com/bao-linfeng/AgentDock/issues/23) [#24](https://github.com/bao-linfeng/AgentDock/issues/24) [#75](https://github.com/bao-linfeng/AgentDock/issues/75) [#76](https://github.com/bao-linfeng/AgentDock/issues/76))
   - ✅ Runner 配置安全与密钥处理 ([#5](https://github.com/bao-linfeng/AgentDock/issues/5))
   - ✅ 任务领取引擎核心 ([#3](https://github.com/bao-linfeng/AgentDock/issues/3))
   - ✅ Runner 侧注册/心跳循环 (#23) · ✅ 领取→执行主循环 (#24)
+  - ✅ 项目映射：`workspacePath` 的权威来源是服务端（`runner_projects`），claim 时会对照本地 `allowedRoots` 强制校验（[#75](https://github.com/bao-linfeng/AgentDock/issues/75)）；本地 `runner.config.json` 的项目条目现在只是可选的漂移/篡改校验值，不再是第二份事实来源，重复的本地 `defaultBranch` 字段也已移除（[#76](https://github.com/bao-linfeng/AgentDock/issues/76)）
 - 🟡 **Milestone 4 —— Agent Runtime** (epic [#7](https://github.com/bao-linfeng/AgentDock/issues/7):[#25](https://github.com/bao-linfeng/AgentDock/issues/25) [#26](https://github.com/bao-linfeng/AgentDock/issues/26))
   - ✅ `AgentExecutor` 接口
   - ✅ OpenCode ACP Executor · ACP → RunEvent 桥接（基于 `@agentclientprotocol/sdk`，见 `packages/agent-runtime`）
