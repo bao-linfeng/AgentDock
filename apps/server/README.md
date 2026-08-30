@@ -19,7 +19,16 @@ pnpm prisma:migrate    # prisma migrate dev (prisma:deploy for existing DBs)
 
 # 4. Run
 pnpm dev               # tsx watch, or: pnpm build && pnpm start
+
+# 5. (optional) End-to-end verification against a real MySQL
+pnpm e2e:mvp           # scripts/mvp-e2e-check.ts — see docs/research/mvp-e2e-verification.md
 ```
+
+`pnpm e2e:mvp` boots the real `AppModule` in-process on an ephemeral port and
+drives it over HTTP the way the Web console and a Runner do (dispatch → claim →
+events → cancel → evidence gating → retry → audit trail). It needs no OpenCode
+binary and no GitHub App, creates only timestamp-namespaced projects, and deletes
+them at the end. Set `AGENTDOCK_URL` to point it at an already-running server.
 
 Startup fails fast when a token is a placeholder, shorter than 16 characters, or
 when `API_AUTH_TOKEN` equals `RUNNER_TOKEN` (a runner token must be revocable on

@@ -489,6 +489,7 @@ end-to-end loop is being assembled. Good ways to contribute right now:
 - [`docs/requirements.md`](./docs/requirements.md) — Goals, MVP scope, data models, security requirements
 - [`docs/architecture.md`](./docs/architecture.md) — System boundaries, tech stack, protocols, database, workflows
 - [`docs/tasks.md`](./docs/tasks.md) — Milestone-by-milestone task breakdown
+- [`docs/research/mvp-e2e-verification.md`](./docs/research/mvp-e2e-verification.md) — MVP Definition-of-Done verification: what the repeatable harness (`pnpm --filter @agentdock/server e2e:mvp`) checks, and the four steps that still need a real GitHub App + OpenCode login ([#64](https://github.com/bao-linfeng/AgentDock/issues/64))
 
 ---
 

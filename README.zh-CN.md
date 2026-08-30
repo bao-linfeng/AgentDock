@@ -460,6 +460,7 @@ AgentDock 处于早期开发阶段 —— 基础包已构建，端到端闭环�
 - [`docs/requirements.md`](./docs/requirements.md) —— 项目目标、MVP 范围、数据模型、安全要求
 - [`docs/architecture.md`](./docs/architecture.md) —— 系统边界、技术栈、协议、数据库、工作流
 - [`docs/tasks.md`](./docs/tasks.md) —— 逐里程碑的任务分解
+- [`docs/research/mvp-e2e-verification.md`](./docs/research/mvp-e2e-verification.md) —— MVP DoD 端到端验证：可重复执行的脚本（`pnpm --filter @agentdock/server e2e:mvp`）覆盖了什么，以及仍需真实 GitHub App + OpenCode 登录才能走的四步（[#64](https://github.com/bao-linfeng/AgentDock/issues/64)）
 
 ---
 

@@ -39,22 +39,26 @@
 
 ### 3.1 必做
 
-- [ ] Runner 注册、鉴权、心跳
-- [ ] 本地项目目录绑定
-- [ ] Web 创建 Task
-- [ ] GitHub Issue / Comment 创建 Task
-- [ ] Task Queue
-- [ ] Runner 主动领取任务
-- [ ] OpenCode ACP Executor
-- [ ] 实时日志 / Progress Event
-- [ ] Task Cancel
-- [ ] Git Worktree / 独立 Branch
-- [ ] 执行测试命令
-- [ ] Commit
-- [ ] Push
-- [ ] 创建 GitHub PR
-- [ ] GitHub Comment 回传结果
-- [ ] Web 展示运行状态、日志、Changed Files、PR URL
+> 状态截至 2026-08-30：以下条目均已实现，验证方式见
+> [`docs/research/mvp-e2e-verification.md`](./research/mvp-e2e-verification.md)
+> 与 docs/tasks.md 的里程碑对照表。
+
+- [x] Runner 注册、鉴权、心跳
+- [x] 本地项目目录绑定
+- [x] Web 创建 Task（#59）
+- [x] GitHub Issue / Comment 创建 Task
+- [x] Task Queue
+- [x] Runner 主动领取任务
+- [x] OpenCode ACP Executor
+- [x] 实时日志 / Progress Event
+- [x] Task Cancel
+- [x] Git Worktree / 独立 Branch
+- [x] 执行测试命令
+- [x] Commit
+- [x] Push
+- [x] 创建 GitHub PR
+- [x] GitHub Comment 回传结果
+- [x] Web 展示运行状态、日志、Changed Files、PR URL
 
 ### 3.2 暂缓
 

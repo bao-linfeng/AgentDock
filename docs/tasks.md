@@ -52,6 +52,7 @@
 | | T9.3 幂等 | ✅ | #40 |
 | | T9.4 密钥脱敏 | ✅ | #5 / PR #14 |
 | | T9.5 统一 Audit Log | ✅ | #63 |
+| MVP DoD | 端到端验证清单与记录 | ✅ | #64 |
 
 > 说明：#6/#7/#8/#9 为里程碑级 epic，#16–#40 为拆细的具体任务，二者以"属于 #N"关联。
 > "明确不做"清单中的能力（见文末）不建 issue。
@@ -1074,12 +1075,31 @@ Web Task = succeeded
 
 并满足：
 
-- [ ] Windows 不开放 inbound OpenCode 端口
-- [ ] Control Server 不保存模型 Key
-- [ ] 日志可追踪
-- [ ] Run 可取消
-- [ ] 失败可诊断
-- [ ] 不允许 direct push 默认分支
+- [x] Windows 不开放 inbound OpenCode 端口（Runner 只有出站调用，执行器走 stdio；
+      见 `apps/runner/src/runner-client.ts`、`packages/agent-runtime/src/acp-client.ts`）
+- [x] Control Server 不保存模型 Key（配置 schema 无该字段；Runner 侧
+      `assertNoEmbeddedModelKeys` 拒绝内嵌模型 Key 的配置）
+- [x] 日志可追踪（RunEvent 按 `seq` 落库 + SSE 回放；e2e 检查 #8）
+- [x] Run 可取消（heartbeat 下发 `cancelRequested`；e2e 检查 #9/#10）
+- [x] 失败可诊断（`errorCode`/`errorMessage` + Web 重试入口，#61；e2e 检查 #11/#12/#13）
+- [x] 不允许 direct push 默认分支（`WorktreeManager.push()` 拒绝，git-runtime 单测覆盖）
+
+## 端到端验证（#64）
+
+> ✅ 已完成（#64，`apps/server/scripts/mvp-e2e-check.ts`，记录见
+> [`docs/research/mvp-e2e-verification.md`](./research/mvp-e2e-verification.md)）
+>
+> 可重复执行的验证脚本：`pnpm --filter @agentdock/server e2e:mvp`（前置：MySQL +
+> 已应用迁移 + `.env` 或环境变量提供 `DATABASE_URL`/`API_AUTH_TOKEN`/`RUNNER_TOKEN`）。
+> 脚本在同一进程内启动真实 `AppModule`，连真实 MySQL，再完全通过 HTTP 驱动 ——
+> 与 Web 控制台/Runner 的调用路径一致，不需要 OpenCode 二进制或 GitHub App，
+> 因此可反复执行；创建的数据在结束时删除。首次执行（2026-08-30）**17/17 通过**，
+> 覆盖：双 token 隔离、Web 派发、原子 claim、单任务约束、事件顺序与回放、取消通道、
+> 证据判定（严格项目失败 / 无远端项目成功）、重试与历史保留、审计日志。
+>
+> **仍需人工环境**的四步（GitHub webhook 触发、真实 OpenCode 执行、自动开 PR 与
+> 回帖、审批门）在验证记录文档第 3 节列出了逐步操作与预期结果 —— 这些依赖只有
+> 真实环境才有的外部凭据（GitHub App、模型 Provider 登录），无法在脚本里断言。
 
 ---
 
