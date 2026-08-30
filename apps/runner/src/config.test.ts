@@ -10,6 +10,7 @@ import {
   assertNoEmbeddedModelKeys,
   loadConfig,
   validateProjects,
+  validateWorkspacePath,
 } from './config.js';
 
 const execFileAsync = promisify(execFile);
@@ -156,6 +157,53 @@ describe('validateProjects', () => {
     });
     const issues = await validateProjects(cfg);
     expect(issues.some((i) => i.message.includes('escapes allowedRoots'))).toBe(true);
+  });
+});
+
+describe('validateWorkspacePath (#75: claim-time root containment gate)', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'agentdock-cfg-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('flags a path escaping allowedRoots', async () => {
+    const repo = join(dir, 'repo');
+    await mkdir(repo);
+    await execFileAsync('git', ['init', '--quiet'], { cwd: repo });
+
+    const issues = await validateWorkspacePath('proj_1', repo, [join(dir, 'somewhere-else')]);
+    expect(issues.some((i) => i.message.includes('escapes allowedRoots'))).toBe(true);
+  });
+
+  it('flags a missing or non-git path even without allowedRoots configured', async () => {
+    const missing = join(dir, 'nope');
+    const missingIssues = await validateWorkspacePath('proj_1', missing);
+    expect(missingIssues.some((i) => i.message.includes('does not exist'))).toBe(true);
+
+    const notGit = join(dir, 'plain');
+    await mkdir(notGit);
+    const notGitIssues = await validateWorkspacePath('proj_1', notGit);
+    expect(notGitIssues.some((i) => i.message.includes('not a git repository'))).toBe(true);
+  });
+
+  it('passes for a git repo inside allowedRoots', async () => {
+    const repo = join(dir, 'repo');
+    await mkdir(repo);
+    await execFileAsync('git', ['init', '--quiet'], { cwd: repo });
+
+    expect(await validateWorkspacePath('proj_1', repo, [dir])).toEqual([]);
+  });
+
+  it('behaves the same as before when allowedRoots is not configured (existence/git checks only)', async () => {
+    const repo = join(dir, 'repo');
+    await mkdir(repo);
+    await execFileAsync('git', ['init', '--quiet'], { cwd: repo });
+
+    expect(await validateWorkspacePath('proj_1', repo)).toEqual([]);
   });
 });
 

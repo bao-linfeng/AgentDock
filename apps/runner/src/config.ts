@@ -52,7 +52,7 @@ export class ConfigError extends Error {
 }
 
 /** True when `child` resolves to a path inside (or equal to) `root`. */
-function isContained(root: string, child: string): boolean {
+export function isContained(root: string, child: string): boolean {
   const rel = relative(resolve(root), resolve(child));
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
@@ -77,6 +77,57 @@ export interface ValidationIssue {
 }
 
 /**
+ * Validate a single workspace path: it must be contained under one of
+ * `allowedRoots` (when set), exist, be a directory, and be a git repository.
+ * Returns a list of issues (usually 0 or 1) rather than throwing so callers
+ * can decide how to react (log-and-continue at startup, or reject-and-fail a
+ * claimed run).
+ *
+ * This is the same check `validateProjects` runs at startup, extracted so it
+ * can also be applied to a server-supplied `workspacePath` at claim time
+ * (docs/architecture.md §14 root containment; #75).
+ */
+export async function validateWorkspacePath(
+  projectId: string,
+  workspacePath: string,
+  allowedRoots?: string[],
+): Promise<ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+  const wp = resolve(workspacePath);
+
+  if (allowedRoots && !allowedRoots.some((r) => isContained(r, wp))) {
+    issues.push({
+      projectId,
+      level: 'error',
+      message: `workspacePath escapes allowedRoots: ${wp}`,
+    });
+  }
+
+  try {
+    const s = await stat(wp);
+    if (!s.isDirectory()) {
+      issues.push({
+        projectId,
+        level: 'error',
+        message: `workspacePath is not a directory: ${wp}`,
+      });
+      return issues;
+    }
+  } catch {
+    issues.push({ projectId, level: 'error', message: `workspacePath does not exist: ${wp}` });
+    return issues;
+  }
+
+  try {
+    await stat(resolve(wp, '.git'));
+  } catch {
+    issues.push({ projectId, level: 'error', message: `not a git repository: ${wp}` });
+  }
+
+  return issues;
+}
+
+/**
  * Validate project mappings against the filesystem: the path must exist, be a
  * git repository, and (if `allowedRoots` is set) be contained under an allowed
  * root. Returns a list of issues rather than throwing so a caller can surface
@@ -86,36 +137,9 @@ export async function validateProjects(config: RunnerConfig): Promise<Validation
   const issues: ValidationIssue[] = [];
 
   for (const [projectId, mapping] of Object.entries(config.projects)) {
-    const wp = resolve(mapping.workspacePath);
-
-    if (config.allowedRoots && !config.allowedRoots.some((r) => isContained(r, wp))) {
-      issues.push({
-        projectId,
-        level: 'error',
-        message: `workspacePath escapes allowedRoots: ${wp}`,
-      });
-    }
-
-    try {
-      const s = await stat(wp);
-      if (!s.isDirectory()) {
-        issues.push({
-          projectId,
-          level: 'error',
-          message: `workspacePath is not a directory: ${wp}`,
-        });
-        continue;
-      }
-    } catch {
-      issues.push({ projectId, level: 'error', message: `workspacePath does not exist: ${wp}` });
-      continue;
-    }
-
-    try {
-      await stat(resolve(wp, '.git'));
-    } catch {
-      issues.push({ projectId, level: 'error', message: `not a git repository: ${wp}` });
-    }
+    issues.push(
+      ...(await validateWorkspacePath(projectId, mapping.workspacePath, config.allowedRoots)),
+    );
   }
 
   return issues;

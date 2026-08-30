@@ -3,7 +3,13 @@ import { OpenCodeExecutor } from '@agentdock/agent-runtime';
 import { DEFAULT_HEARTBEAT_INTERVAL_MS } from '@agentdock/shared';
 import { RunnerApprovalGate } from './approval-gate.js';
 import { ClaimExecuteLoop } from './claim-execute-loop.js';
-import { type RunnerConfig, checkFilePermissions, loadConfig, validateProjects } from './config.js';
+import {
+  type RunnerConfig,
+  checkFilePermissions,
+  loadConfig,
+  validateProjects,
+  validateWorkspacePath,
+} from './config.js';
 import { HeartbeatLoop } from './heartbeat-loop.js';
 import { RunnerApiError, RunnerClient, RunnerTokenRevokedError } from './runner-client.js';
 
@@ -106,6 +112,12 @@ async function main(): Promise<void> {
     getPushConfig: (projectId) => config.projects[projectId]?.push,
     requestPushApproval: (runId, summary, detail) =>
       approvalGate.requestPushApproval(runId, summary, detail),
+    assertWorkspaceAllowed: async (projectId, workspacePath) => {
+      const issues = await validateWorkspacePath(projectId, workspacePath, config.allowedRoots);
+      if (issues.length > 0) {
+        throw new Error(issues.map((i) => i.message).join('; '));
+      }
+    },
     onLog: (message) => {
       console.log(`[runner] ${message}`);
     },

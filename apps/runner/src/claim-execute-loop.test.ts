@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentExecutor, ExecutorEventSink, ExecutorRunInput } from '@agentdock/agent-runtime';
 import type { EvidenceRulesOverride } from '@agentdock/protocol';
@@ -286,6 +286,98 @@ describe('ClaimExecuteLoop.tick', () => {
 
     resolveRun?.();
     await firstTick;
+  });
+});
+
+describe('ClaimExecuteLoop workspace allow-list gate (#75)', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await makeRepo();
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  it('rejects and completes as failed with workspace_not_allowed when assertWorkspaceAllowed rejects', async () => {
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async () => ({ status: 'succeeded', artifacts: [] }));
+    const assertWorkspaceAllowed = vi
+      .fn()
+      .mockRejectedValue(new Error('workspacePath escapes allowedRoots: /elsewhere'));
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      assertWorkspaceAllowed,
+    });
+
+    await loop.tick();
+
+    expect(assertWorkspaceAllowed).toHaveBeenCalledWith('proj_1', resolve(repo));
+    expect(executor.run).not.toHaveBeenCalled();
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('failed');
+    expect(completion?.errorCode).toBe('workspace_not_allowed');
+    expect(completion?.errorMessage).toContain('escapes allowedRoots');
+  });
+
+  it('rejects when the workspace does not exist / is not a git repo', async () => {
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async () => ({ status: 'succeeded', artifacts: [] }));
+    const assertWorkspaceAllowed = vi
+      .fn()
+      .mockRejectedValue(new Error('not a git repository: /tmp/plain'));
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      assertWorkspaceAllowed,
+    });
+
+    await loop.tick();
+
+    expect(executor.run).not.toHaveBeenCalled();
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('failed');
+    expect(completion?.errorCode).toBe('workspace_not_allowed');
+    expect(completion?.errorMessage).toContain('not a git repository');
+  });
+
+  it('proceeds normally when assertWorkspaceAllowed resolves (path is inside allowedRoots)', async () => {
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const assertWorkspaceAllowed = vi.fn().mockResolvedValue(undefined);
+    const loop = new ClaimExecuteLoop({
+      client,
+      pollIntervalMs: 1000,
+      executor,
+      assertWorkspaceAllowed,
+    });
+
+    await loop.tick();
+
+    expect(assertWorkspaceAllowed).toHaveBeenCalledWith('proj_1', resolve(repo));
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
+  });
+
+  it('behaves as before (no gate applied) when assertWorkspaceAllowed is not configured', async () => {
+    const client = fakeClient([claimedWork(repo, { intent: 'general' })]);
+    const executor = fakeExecutor(async (input) => {
+      await writeFile(join(input.workspaceCwd, 'fix.txt'), 'patched\n');
+      return { status: 'succeeded', artifacts: [] };
+    });
+    const loop = new ClaimExecuteLoop({ client, pollIntervalMs: 1000, executor });
+
+    await loop.tick();
+
+    const completion = client.completions[0]?.input;
+    expect(completion?.status).toBe('succeeded');
   });
 });
 
