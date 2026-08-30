@@ -315,6 +315,15 @@ pnpm install
 
 ### 2. Configure & start the Control Server
 
+> [!TIP]
+> Steps 2–4 below walk through configuring and starting each service
+> individually the first time. Once `apps/server/.env` and
+> `apps/runner/runner.config.json` exist, you can start the Control Server,
+> Local Runner, and Web console together from the repo root with a single
+> command: `pnpm dev` (builds the workspace packages, then runs all three
+> concurrently with labeled output; the Runner waits for `GET /health` before
+> registering, so start order isn't a race).
+
 ```bash
 pnpm db:up            # MySQL 8 via Docker (MYSQL_PORT=3307 if 3306 is taken)
 cd apps/server
